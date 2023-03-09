@@ -1,0 +1,9 @@
+[package]
+name = "iodine_rs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.69"
+exitcode = "1.1.2"
+tun = "0.5.5"
