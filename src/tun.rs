@@ -3,12 +3,13 @@ use std::process;
 
 use anyhow::Context;
 
-pub fn create_tun(name: &str, ip: &str, netmask: &str, pkt_info: bool) -> tun::platform::Device {
+pub fn create_tun(name: String, ip: String, netmask: String, pkt_info: bool) -> tun::platform::Device {
     //TODO panicks on invalid address & netmask
+    //TODO handle netmask, need to convert from cidr
     let mut config = tun::Configuration::default();
     config.name(name)
         .address(ip)
-        .netmask(netmask)
+        .netmask((255, 255, 255, 0))
         .up();
     
     #[cfg(target_os = "linux")]

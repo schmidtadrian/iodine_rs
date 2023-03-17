@@ -47,7 +47,8 @@ impl Client {
         hasher.finalize().try_into().expect("HASH ERR")
     }
 
-    pub fn login_handshake(&self, password: String, challenge: u32, uid: u8) -> anyhow::Result<()> {
+    /// On success returns string: "server_ip-client_ip-mtu-netmask"
+    pub fn login_handshake(&self, password: String, challenge: u32, uid: u8) -> anyhow::Result<(String, String, String, String)> {
         let hash = self.calc_login(password, challenge);
         let mut bytes: [u8; 19] = [0; 19];
         bytes[0] = uid;
@@ -72,11 +73,16 @@ impl Client {
             x if x.contains("LNAK") => return Err(LoginError::Unauthorized.into()),
             x if x.contains("BADIP") => return Err(LoginError::Uid.into()),
             x if x.is_empty() => return Err(LoginError::Unknown.into()),
-            _ => println!("Login success!")
+            _ => println!("Login success! {}", s)
         }
+        let mut fields = s.split('-');
+        Ok((
+            fields.next().unwrap_or("").to_string(), // server ip
+            fields.next().unwrap_or("").to_string(), // client ip
+            fields.next().unwrap_or("").to_string(), // mtu
+            fields.next().unwrap_or("").to_string(), // netmask
+        ))
 
-        //TODO handle login response data
-        Ok(())
     }
 }
 
