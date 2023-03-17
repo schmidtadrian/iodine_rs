@@ -1,5 +1,4 @@
 use std::io::Read;
-use base32::{encode_url, decode, Base32Encoder};
 use data_encoding::Specification;
 use dns::dns_encode;
 use tokio::net::UdpSocket;
@@ -14,6 +13,7 @@ mod base32;
 mod dns;
 mod trust_dns;
 mod client;
+mod login;
 
 const IF_NAME: &str = "tun1";
 
@@ -25,13 +25,14 @@ fn main() {
     let client = match client::Client::new(
         client::ProtocolVersion::V502,
         "t2.adrian-s.de".to_string(),
-        "40.113.151.92".to_string(),
+        //"40.113.151.92".to_string(),
+        "127.0.0.1".to_string(),
         53,
     ) {
             Ok(client) => client,
             Err(err) => return eprintln!("{}", err)
         };
-    client.version_handshake();
+    client.init("secretpassword".to_string());
 
 
     //let ver_payload: &[u8] = &[0,0,5,2,69,103];

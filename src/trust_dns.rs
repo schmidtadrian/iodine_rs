@@ -1,4 +1,4 @@
-use std::{str::FromStr, net::SocketAddr};
+use std::str::FromStr;
 
 use trust_dns_client::{udp::UdpClientConnection, client::{SyncClient, Client}, rr::Name};
 
@@ -12,15 +12,15 @@ pub fn connect(socket: String) -> anyhow::Result<SyncClient<UdpClientConnection>
     Ok(SyncClient::new(conn))
 }
 
-pub fn query(name: &str, client: &SyncClient<UdpClientConnection>) -> anyhow::Result<Option<String>> {
+pub fn query(name: &str, client: &SyncClient<UdpClientConnection>) -> anyhow::Result<String> {
     let name = Name::from_str(name).unwrap();
     let response = client.query(&name, trust_dns_client::rr::DNSClass::IN, trust_dns_client::rr::RecordType::TXT)?;
     let answer = response.answers();
 
     if let Some(data) = answer[0].data() {
-        Ok(Some(data.to_string()))
+        Ok(data.to_string())
     } else {
-        Ok(None)
+        Ok("".to_string())
     }
 }
 

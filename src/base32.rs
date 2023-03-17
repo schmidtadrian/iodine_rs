@@ -1,38 +1,11 @@
 use data_encoding::{Specification, Encoding};
 
 
+/// server uses custom base32 alphabet
 const SYMBOLS: &str = "abcdefghijklmnopqrstuvwxyz012345";
 
-pub fn encode_url(data: &[u8], cmd: char, domain: String) -> String {
-
-    let base_32: Encoding = {
-        let mut spec = Specification::new();
-        spec.symbols.push_str(SYMBOLS);
-        spec.encoding().unwrap()
-    };
-
-    cmd.to_string() + &base_32.encode(data) + "." +  &domain
-}
-
-pub fn decode(data: String) {
-
-    let base_32: Encoding = {
-        let mut spec = Specification::new();
-        spec.symbols.push_str(SYMBOLS);
-        spec.encoding().unwrap()
-    };
-    let mut chars = data.chars();
-    chars.next();
-    println!("{}", chars.as_str());
-    let dec = base_32.decode(chars.as_str().as_bytes()).unwrap();
-    println!("{:?}", dec);
-    println!("{:?}", std::str::from_utf8(&dec[0..4]));
-    dec.into_iter().for_each(|c| print!("{}, ", c as char));
-    println!();
-}
-
 pub struct Base32Encoder {
-    encoder: Encoding
+    pub encoder: Encoding
 }
 
 impl Base32Encoder {
