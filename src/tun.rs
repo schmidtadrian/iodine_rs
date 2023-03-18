@@ -3,13 +3,15 @@ use std::process;
 
 use anyhow::Context;
 
+/// Creates TUN dev.
+/// Panicks on invalid parameters or insufficient privileges
 pub fn create_tun(name: String, ip: String, netmask: String, pkt_info: bool) -> tun::platform::Device {
-    //TODO panicks on invalid address & netmask
-    //TODO handle netmask, need to convert from cidr
+    // cidr netmask to byte array
+    let mask: [u8; 4] = (u32::MAX << netmask.parse::<u8>().unwrap()).to_be_bytes();
     let mut config = tun::Configuration::default();
-    config.name(name)
-        .address(ip)
-        .netmask((255, 255, 255, 0))
+    config.name(&name)
+        .address(&ip)
+        .netmask((mask[0], mask[1], mask[2], mask[3]))
         .up();
     
     #[cfg(target_os = "linux")]
@@ -19,7 +21,7 @@ pub fn create_tun(name: String, ip: String, netmask: String, pkt_info: bool) -> 
 
     match tun::create(&config).with_context(|| "Failed to create tun device".to_string()) {
         Ok(dev) => {
-            println!("OK");
+            println!("Created dev {} with ip {}/{}", name, ip, netmask);
             dev
         },
         Err(_err) => {

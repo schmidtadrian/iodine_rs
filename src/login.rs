@@ -73,7 +73,7 @@ impl Client {
             x if x.contains("LNAK") => return Err(LoginError::Unauthorized.into()),
             x if x.contains("BADIP") => return Err(LoginError::Uid.into()),
             x if x.is_empty() => return Err(LoginError::Unknown.into()),
-            _ => println!("Login success! {}", s)
+            _ => println!("Login successful!")
         }
         let mut fields = s.split('-');
         Ok((
