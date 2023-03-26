@@ -18,6 +18,13 @@ sudo target/debug/iodine_rs
 
 ## Status
 DNS Type `TXT` is currently hard coded. Currently `base32` only, could be easily extended.
-- [x] Version handshake
-- [x] Login
-- [x] Setup TUN dev
+- [ ] Handshake
+    - [x] Version handshake
+    - [x] Login
+    - [x] Setup TUN dev
+    - [x] Check edns0 support
+    - [ ] Set upstream encoding
+    - [ ] Set downstream encoding
+    - [ ] Set fragment size
+- [ ] Data transfer
+

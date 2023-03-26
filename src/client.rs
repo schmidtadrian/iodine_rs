@@ -34,15 +34,15 @@ impl Client {
             Err(err) => return eprint!("{}", err)
         };
         // 3. login
-        let (server_ip, client_ip, mtu, netmask) = match self.login_handshake(password, challenge, uid) {
+        let (_server_ip, client_ip, _mtu, netmask) = match self.login_handshake(password, challenge, uid) {
             Ok(data) => data,
             Err(err) => return eprintln!("{}", err)
         };
         // 4. setup tun
         create_tun("tun0".to_string(), client_ip, netmask, false);
-        loop {
-           std::thread::sleep(Duration::from_secs(1));
-        }
+        //loop {
+        //   std::thread::sleep(Duration::from_secs(1));
+        //}
     }
 }
 

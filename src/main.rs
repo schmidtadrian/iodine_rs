@@ -1,6 +1,7 @@
 use std::io::Read;
 use data_encoding::Specification;
 use dns::dns_encode;
+use down_enc::DOWN_CODEC_CHECK;
 use tokio::net::UdpSocket;
 use trust_dns::{connect, query};
 use trust_dns_client::client::Client;
@@ -14,6 +15,7 @@ mod dns;
 mod trust_dns;
 mod client;
 mod login;
+mod down_enc;
 
 const IF_NAME: &str = "tun1";
 
@@ -33,6 +35,10 @@ fn main() {
             Err(err) => return eprintln!("{}", err)
         };
     client.init("secretpassword".to_string());
+    match client.edns0_check() {
+        Ok(data) => println!("Using edns: {}", data),
+        Err(err) => println!("{}", err)
+    }
 
 
     //let ver_payload: &[u8] = &[0,0,5,2,69,103];
