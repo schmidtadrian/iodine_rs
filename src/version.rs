@@ -1,27 +1,16 @@
 use crate::client::Client;
-use crate::trust_dns::query;
 use thiserror::Error;
 
 impl Client {
     /// Sends client version to server.
     /// On success returns a tuple of (login_challenge, user_id)
     pub fn send_version(&self) -> anyhow::Result<(u32, u8)> {
-        let version = self.version as i32;
-        let seed = rand::random::<u16>();
-        let bytes: [u8; 6] = [
-            (version >> 24) as u8,
-            (version >> 16) as u8,
-            (version >>  8) as u8,
-            version as u8,
-            (seed >> 8) as u8,
-            seed as u8
-        ];
+        let bytes = [
+            (self.version as u32).to_be_bytes().as_slice(),
+            rand::random::<u16>().to_be_bytes().as_slice()
+        ].concat();
         let url = self.enc.encode(&bytes, 'v', &self.domain);
-
-        let answer = match query(&url, &self.dns) {
-            Ok(answer) => answer,
-            Err(err) => return Err(VersionError::Query(err.to_string()).into())
-        };
+        let answer = self.send_query(self.create_msg(url))?;
 
         // response data:
         // 4 bytes 0-3: first for bytes is VACK/VNAK or VFUL

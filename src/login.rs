@@ -16,7 +16,7 @@ use std::cmp::min;
 use md5::{Md5, Digest};
 use thiserror::Error;
 
-use crate::{client::Client, trust_dns::query};
+use crate::client::Client;
 
 impl Client {
     
@@ -49,18 +49,17 @@ impl Client {
 
     /// On success returns string: "server_ip-client_ip-mtu-netmask"
     pub fn login_handshake(&self, password: String, challenge: u32, uid: u8) -> anyhow::Result<(String, String, String, String)> {
-        let hash = self.calc_login(password, challenge);
-        let mut bytes: [u8; 19] = [0; 19];
-        bytes[0] = uid;
-        bytes[1..=16].copy_from_slice(&hash);
-        bytes[17] = 0;
-        bytes[18] = 0;
+        //  1 byte user id
+        // 16 byte md5 hash
+        //  2 byte cmc
+        let bytes = [
+            uid.to_be_bytes().as_slice(),
+            self.calc_login(password, challenge).as_slice(),
+            rand::random::<u16>().to_be_bytes().as_slice()
+        ].concat();
         let url = self.enc.encode(&bytes, 'l', &self.domain);
 
-        let answer = match query(&url, &self.dns) {
-            Ok(answer) => answer,
-            Err(err) => return Err(LoginError::Query(err.to_string()).into())
-        };
+        let answer = self.send_query(self.create_msg(url))?;
 
         let response_data = match self.enc.decode(answer) {
             Ok(data) => data,

@@ -1,9 +1,9 @@
 use std::io::Read;
+use base32::Base32Encoder;
 use data_encoding::Specification;
 use dns::dns_encode;
 use down_enc::DOWN_CODEC_CHECK;
 use tokio::net::UdpSocket;
-use trust_dns::{connect, query};
 use trust_dns_client::client::Client;
 
 use crate::tun::create_tun;
@@ -16,6 +16,7 @@ mod trust_dns;
 mod client;
 mod login;
 mod down_enc;
+mod util;
 
 const IF_NAME: &str = "tun1";
 
@@ -24,7 +25,7 @@ const IF_NAME: &str = "tun1";
 //async fn main() -> std::io::Result<()> {
 fn main() {
 
-    let client = match client::Client::new(
+    let mut client = match client::Client::new(
         client::ProtocolVersion::V502,
         "t2.adrian-s.de".to_string(),
         //"40.113.151.92".to_string(),
@@ -35,10 +36,8 @@ fn main() {
             Err(err) => return eprintln!("{}", err)
         };
     client.init("secretpassword".to_string());
-    match client.edns0_check() {
-        Ok(data) => println!("Using edns: {}", data),
-        Err(err) => println!("{}", err)
-    }
+
+    //client.upstream_encoding_handshake();
 
 
     //let ver_payload: &[u8] = &[0,0,5,2,69,103];
