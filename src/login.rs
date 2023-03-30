@@ -11,20 +11,21 @@
 // 2 byte CMC
 
 
-use std::cmp::min;
+use std::{cmp::min, net::IpAddr};
 
+use data_encoding::Encoding;
 use md5::{Md5, Digest};
 use thiserror::Error;
+use trust_dns_client::{client::SyncClient, udp::UdpClientConnection};
 
 use crate::client::Client;
 
 impl Client {
-    
+
     /// Takes password & login challenge. Returns 16 byte md5 hash required for login handshake.
     /// `challenge` - 4 bytes received during version handshake
     /// `password` - password for iodine server
-    pub fn calc_login(&self, password: String, challenge: u32) -> [u8; 16] {
-
+    pub fn calc_login(password: String, challenge: u32, ) -> [u8; 16] {
         // Copies the password into input.
         // This is required, bc iodine server hashes always over 32 byte no matter of password length
         let mut input: [u8; 32] = [0; 32];
@@ -48,40 +49,51 @@ impl Client {
     }
 
     /// On success returns string: `<server_ip>-<client_ip>-<mtu-netmask>`
-    pub fn login_handshake(&self, password: String, challenge: u32, uid: u8) -> anyhow::Result<(String, String, String, String)> {
+    pub fn login_handshake(
+        password: String,
+        challenge: u32,
+        uid: u8,
+        domain: &String,
+        cmc: &mut u16,
+        encoder: &Encoding,
+        dns: &SyncClient<UdpClientConnection>
+    ) -> anyhow::Result<(IpAddr, IpAddr, i32, u32)> {
+
         //  1 byte user id
         // 16 byte md5 hash
         //  2 byte cmc
         let bytes = [
             uid.to_be_bytes().as_slice(),
-            self.calc_login(password, challenge).as_slice(),
-            rand::random::<u16>().to_be_bytes().as_slice()
+            Self::calc_login(password, challenge).as_slice(),
+            cmc.to_be_bytes().as_slice()
         ].concat();
-        let url = self.enc.encode(&bytes, 'l', &self.domain);
+        *cmc += 1;
 
-        let answer = self.send_query(self.create_msg(url))?;
+        let url = Self::encode(&bytes, 'l', domain, encoder);
+        let msg = Self::create_msg(&None, url);
+        let answer = Self::send_query(dns, msg)?;
+        let decoded = Self::decode_to_string(answer, encoder)?;
 
-        let response_data = match self.enc.decode(answer) {
-            Ok(data) => data,
-            Err(err) => return Err(LoginError::Decode(err.to_string()).into())
-        };
-
-
-        let s = std::str::from_utf8(&response_data).unwrap_or("");
-        match s {
-            x if x.contains("LNAK") => return Err(LoginError::Unauthorized.into()),
-            x if x.contains("BADIP") => return Err(LoginError::Uid.into()),
-            x if x.is_empty() => return Err(LoginError::Unknown.into()),
+        match decoded {
+            s if s.contains("LNAK") => return Err(LoginError::Unauthorized.into()),
+            s if s.contains("BADIP") => return Err(LoginError::Uid.into()),
+            s if s.is_empty() => return Err(LoginError::Unknown.into()),
             _ => println!("Login successful!")
         }
-        let mut fields = s.split('-');
-        Ok((
-            fields.next().unwrap_or("").to_string(), // server ip
-            fields.next().unwrap_or("").to_string(), // client ip
-            fields.next().unwrap_or("").to_string(), // mtu
-            fields.next().unwrap_or("").to_string(), // netmask
-        ))
 
+        // ugly parsing, may a struct is better
+        let mut fields = decoded.split('-');
+        let server_ip: IpAddr = fields.next().ok_or(LoginError::UnexpectedResponse)?.parse().map_err(|_| LoginError::UnexpectedResponse)?;
+        let client_ip: IpAddr = fields.next().ok_or(LoginError::UnexpectedResponse)?.parse().map_err(|_| LoginError::UnexpectedResponse)?;
+        let mtu: i32 = fields.next().ok_or(LoginError::UnexpectedResponse)?.parse().map_err(|_| LoginError::UnexpectedResponse)?;
+        let netmask: u32 = fields.next().ok_or(LoginError::UnexpectedResponse)?.parse().map_err(|_| LoginError::UnexpectedResponse)?;
+
+        Ok((
+            server_ip,
+            client_ip,
+            mtu,
+            netmask
+        ))
     }
 }
 
@@ -95,6 +107,8 @@ pub enum LoginError {
     Unauthorized,
     #[error("Bad user id")]
     Uid,
+    #[error("Can't handle server response")]
+    UnexpectedResponse,
     #[error("Unknown error")]
     Unknown
 }

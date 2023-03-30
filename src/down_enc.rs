@@ -1,9 +1,9 @@
 
-use data_encoding::Specification;
+use data_encoding::Encoding;
 use thiserror::Error;
-use trust_dns_client::{op::{Message, Query, MessageType, Edns}, rr::{RecordType, DNSClass, Name}, client::Client, serialize::binary::BinDecodable, error::LexerErrorKind};
+use trust_dns_client::{op::Edns, client::SyncClient, udp::UdpClientConnection};
 
-use crate::{util::b32_5to8};
+use crate::util::b32_5to8;
 
 /// fix 48 byte check value
 /// first 16 bytes are:
@@ -22,27 +22,70 @@ pub const DOWN_CODEC_CHECK: [u8; 48] = [
 ];
 
 impl crate::client::Client {
-    pub fn edns0_check(&mut self) -> anyhow::Result<bool> {
-        self.use_edns(true);
-        let url = "ytbqqq.".to_owned() + &self.domain;
-        let msg = self.create_msg(url);
+    pub fn edns0_check(domain: &String, cmc: &mut u16, encoder: &Encoding, dns: &SyncClient<UdpClientConnection>) -> anyhow::Result<Option<Edns>> {
+        let edns = &Self::use_edns(true);
+        let url = "ytbqqq.".to_owned() + domain;
+        let msg = Self::create_msg(edns, url);
+        let answer = Self::send_query(dns, msg)?;
+        let data = Self::decode(answer, encoder)?;
 
-        let response = self.send_query(msg)?;
-        let response_data = self.enc.decode(response)?;
+        let use_edns = data.eq(&DOWN_CODEC_CHECK);
+        println!("Using edns0: {}", use_edns);
 
-        let use_edns = response_data.eq(&DOWN_CODEC_CHECK);
-        self.use_edns(use_edns);
-
-        Ok(use_edns)
+        Ok(Self::use_edns(use_edns))
     }
 
-    pub fn set_downstream_encoding(&self, uid: u8) -> anyhow::Result<()> {
-        let url = "o".to_string() + &b32_5to8(uid as usize).to_string() + "tqqq." + &self.domain;
-        let msg = self.create_msg(url);
-        let answer = self.send_query(msg)?;
+    pub fn set_downstream_frag_size(
+        uid: u8,
+        size: u16,
+        domain: &String,
+        cmc: &mut u16,
+        encoder: &Encoding,
+        dns: &SyncClient<UdpClientConnection>,
+        edns: &Option<Edns>
+    ) -> anyhow::Result<u16> {
 
-        let dec = &self.enc.decode(answer)?;
-        let response_data = std::str::from_utf8(dec)?;
+        // 1 byte user id
+        // 2 byte frag size
+        // 2 byte cmc
+        let bytes = [
+            uid.to_be_bytes().as_slice(),
+            size.to_be_bytes().as_slice(),
+            cmc.to_be_bytes().as_slice()
+        ].concat();
+        *cmc += 1;
+
+        let url = Self::encode(&bytes, 'n', domain, encoder);
+        let msg = Self::create_msg(edns, url);
+        let answer = Self::send_query(dns, msg)?;
+        let decoded = Self::decode(answer, encoder)?;
+        let response_data = std::str::from_utf8(&decoded)?;
+
+        match response_data {
+            s if s.contains("BADFRAG") => Err(FragError::FragSize.into()),
+            s if s.contains("BADIP") => Err(FragError::Addr.into()),
+            _ => {
+                let bytes: [u8; 2] = decoded[0..2].try_into().map_err(|_| FragError::UnexpectedResponse)?;
+                let frag_size = u16::from_be_bytes(bytes);
+                println!("Using downstream frag size: {}", frag_size);
+                Ok(frag_size)
+            }
+        }
+    }
+
+    pub fn set_downstream_encoding(
+        uid: u8,
+        domain: &String,
+        encoder: &Encoding,
+        dns: &SyncClient<UdpClientConnection>,
+        edns: &Option<Edns>
+    ) -> anyhow::Result<()> {
+
+        let url = "o".to_string() + &b32_5to8(uid as usize).to_string() + "tqqq." + domain;
+        let msg = Self::create_msg(edns, url);
+        let answer = Self::send_query(dns, msg)?;
+        let decoded = Self::decode(answer, encoder)?;
+        let response_data = std::str::from_utf8(&decoded)?;
 
         match response_data {
             s if s.contains("BADLEN")   => return Err(DownEncodingError::MsgLen.into()),
@@ -52,36 +95,8 @@ impl crate::client::Client {
         }
         Ok(())
     }
-
-    pub fn set_downstream_frag_size(&self, uid: u8, size: u16) -> anyhow::Result<u16> {
-
-        // 1 byte user id
-        // 2 byte frag size
-        // 2 byte cmc
-        let bytes = [
-            uid.to_be_bytes().as_slice(),
-            size.to_be_bytes().as_slice(),
-            rand::random::<u16>().to_be_bytes().as_slice()
-        ].concat();
-
-        let url = self.enc.encode(&bytes, 'n', &self.domain);
-        let answer = self.send_query(self.create_msg(url))?;
-        let decode = &self.enc.decode(answer)?;
-        let response_data = std::str::from_utf8(decode)?;
-
-        match response_data {
-            s if s.contains("BADFRAG") => Err(FragError::FragSize.into()),
-            s if s.contains("BADIP") => Err(FragError::Addr.into()),
-            _ => {
-                let bytes: [u8; 2] = decode[0..2].try_into().map_err(|_| FragError::UnexpectedResponse)?;
-                let frag_size = u16::from_be_bytes(bytes);
-                println!("Using downstream frag size: {}", frag_size);
-                Ok(frag_size)
-            }
-        }
-    }
-
 }
+
 
 #[derive(Error, Debug)]
 pub enum DownEncodingError {

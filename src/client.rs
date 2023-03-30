@@ -1,7 +1,6 @@
-use std::time::Duration;
-
+use data_encoding::Encoding;
 use trust_dns_client::{client::SyncClient, udp::UdpClientConnection, op::Edns};
-use crate::{base32::Base32Encoder, trust_dns::connect, tun::create_tun};
+use crate::{base32::SYMBOLS, trust_dns::connect, tun::create_dev};
 
 
 #[derive(Clone, Copy)]
@@ -9,55 +8,68 @@ pub enum ProtocolVersion {
     V502 = 0x00000502
 }
 
+#[derive(Default, Debug, Clone)]
+pub struct Packet {
+    pub len: u32,
+    pub sent_len: u32,
+    pub offset: u32,
+    pub data: Vec<u8>,
+    pub seq_no: u8,
+    pub fragment: u8
+}
+
+impl Packet {
+    pub fn inc_seq_no(&mut self) -> &Self {
+        self.seq_no = (self.seq_no+1) & 7;
+        self
+    }
+}
+
 pub struct Client {
     pub version: ProtocolVersion,
     pub domain: String,
-    pub enc: Base32Encoder,
+    pub encoder: Encoding,
     pub dns: SyncClient<UdpClientConnection>,
-    pub edns: Option<Edns>
+    pub edns: Option<Edns>,
+    pub tun: tun::platform::Device,
+    pub out_pkt: Packet,
+    pub in_pkt: Packet,
+    pub cmc: u16,
+    pub uid: u8
 }
 
 impl Client {
-    pub fn new(version: ProtocolVersion, domain: String, nameserver: String, port: u16) -> anyhow::Result<Client> {
-        Ok(Client {
+    pub fn new(
+        version: ProtocolVersion,
+        domain: String,
+        nameserver: String,
+        port: u16,
+        password: String
+    ) -> anyhow::Result<Client> {
+
+        let mut cmc = rand::random::<u16>();
+        let encoder = Self::make_encoding(SYMBOLS).unwrap();
+        let dns = connect(nameserver + ":" + &port.to_string()).unwrap(); // REMOVE UNWRAP
+        let (challenge, user_id) = Self::version_handshake(&dns, version as u32, &mut cmc, &domain, &encoder)?;
+        let (server_ip, client_ip, mtu, netmask) = Self::login_handshake(password, challenge, user_id, &domain, &mut cmc, &encoder, &dns)?;
+        let tun = create_dev("tun0".to_string(), client_ip, netmask, mtu, false);
+        let edns = Self::edns0_check(&domain, &mut cmc, &encoder, &dns)?;
+        Self::set_downstream_encoding(user_id, &domain, &encoder, &dns, &edns)?;
+        Self::set_downstream_frag_size(user_id, 696, &domain, &mut cmc, &encoder, &dns, &edns)?;
+
+        let client = Client {
             version,
             domain,
-            enc: Base32Encoder::new()?,
-            dns: connect(nameserver + ":" + &port.to_string())?,
-            edns: None
-        })
-    }
-
-    pub fn init(&mut self, password: String) {
-        // 1. connect dns client
-        // 2. version handshake
-        let (challenge, uid) = match self.send_version() {
-            Ok(data) => data,
-            Err(err) => return eprintln!("{}", err)
+            encoder,
+            dns,
+            edns,
+            tun,
+            out_pkt: Default::default(),
+            in_pkt: Default::default(),
+            cmc,
+            uid: user_id
         };
-        // 3. login
-        let (_server_ip, client_ip, _mtu, netmask) = match self.login_handshake(password, challenge, uid) {
-            Ok(data) => data,
-            Err(err) => return eprintln!("{}", err)
-        };
-        // 4. setup tun
-        create_tun("tun0".to_string(), client_ip, netmask, false);
-        //loop {
-        //   std::thread::sleep(Duration::from_secs(1));
-        //}
-        
-        match self.edns0_check() {
-            Ok(data) => println!("Using edns: {}", data),
-            Err(err) => println!("{}", err)
-        }
 
-        if let Err(err) = self.set_downstream_encoding(uid) {
-            println!("{}", err);
-        }
-
-        if let Err(err) = self.set_downstream_frag_size(uid, 768) {
-            println!("{}", err);
-        }
+        Ok(client)
     }
 }
-

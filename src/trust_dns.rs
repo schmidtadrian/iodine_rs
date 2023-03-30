@@ -1,6 +1,3 @@
-use std::str::FromStr;
-
-use anyhow::Context;
 use thiserror::Error;
 use trust_dns_client::{udp::UdpClientConnection, client::{SyncClient, Client}, rr::{Name, RecordType, DNSClass}, op::{Message, Edns, Query, MessageType}};
 
@@ -16,18 +13,7 @@ pub fn connect(socket: String) -> anyhow::Result<SyncClient<UdpClientConnection>
 
 impl crate::client::Client {
 
-    pub fn use_edns(&mut self, flag: bool) {
-        self.edns = match flag {
-            true => {
-                let mut edns = Edns::new();
-                edns.set_max_payload(4096);
-                Some(edns)
-            },
-            false => None
-        };
-    }
-
-    pub fn create_msg(&self, url: String) -> Message {
+    pub fn create_msg(edns: &Option<Edns>, url: String) -> Message {
         let mut msg = Message::new();
         msg.add_query({
             let mut query = Query::query(Name::from_ascii(url).unwrap(), RecordType::TXT);
@@ -39,26 +25,58 @@ impl crate::client::Client {
         .set_op_code(trust_dns_client::op::OpCode::Query)
         .set_recursion_desired(true);
     
-        if let Some(ref edns) = &self.edns {
+        if let Some(ref edns) = &edns {
             msg.set_edns(edns.to_owned());
         }
     
         msg
     }
 
-    pub fn send_query(&self, msg: Message) -> Result<String, QueryError> {
-        let response = self.dns.send(msg).first().ok_or(QueryError::NoResponse)?.to_owned()?;
+    pub fn create(&self, url: String) -> Message {
+        Self::create_msg(&self.edns, url)
+    }
+
+    pub fn send(&self, msg: Message) -> Result<String, QueryError> {
+        Self::send_query(&self.dns, msg)
+    }
+
+    pub fn send_query(client: &SyncClient<UdpClientConnection>, msg: Message) -> Result<String, QueryError> {
+        let response = client.send(msg).first().ok_or(QueryError::NoResponse)?.to_owned()?;
         let data = response.answers().first().ok_or(QueryError::NoAnswer)?.data().ok_or(QueryError::NoData)?;
         Ok(data.to_string())
-        //let response = self.dns.send(msg)[0].context(format!("Failed to send query"))?;
-        //match &self.dns.send(msg)[0] {
-        //    Ok(response) => 
-        //        if let Some(data) = response.answers()[0].data() { Ok(data.to_string()) }
-        //        else { Err(QueryError::NoData.into()) },
-        //    Err(err) => Err(QueryError::Send(err.to_string()).into()),
-        //}
     }
+
+    pub fn use_edns(flag: bool) -> Option<Edns> {
+        match flag {
+            true => {
+                let mut edns = Edns::new();
+                edns.set_max_payload(4096);
+                Some(edns)
+            },
+            false => None
+        }
+    }
+
+    pub fn send_ping(&self) {
+        // 1 byte user id
+        // 1 byte with:
+        //      1 bit unused (MSB)
+        //      3 bit seq no
+        //      4 bit frag
+        // 2 byte cmc
+        let bytes: &[u8; 4] = &[
+            0,
+            ((self.in_pkt.seq_no & 7) << 4) | (self.in_pkt.fragment & 15),
+            0,
+            0,
+        ];
+
+        //let url = self.encoder(bytes, 'p', &self.domain);
+        //println!("PING: {}", url);
+    }
+
 }
+
 
 
 #[derive(Error, Debug)]

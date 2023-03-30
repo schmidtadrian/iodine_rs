@@ -1,12 +1,9 @@
-use std::io::Read;
-use base32::Base32Encoder;
+use client::Client;
 use data_encoding::Specification;
 use dns::dns_encode;
 use down_enc::DOWN_CODEC_CHECK;
 use tokio::net::UdpSocket;
-use trust_dns_client::client::Client;
 
-use crate::tun::create_tun;
 
 mod tun;
 mod version;
@@ -25,17 +22,28 @@ const IF_NAME: &str = "tun1";
 //async fn main() -> std::io::Result<()> {
 fn main() {
 
-    let mut client = match client::Client::new(
+
+    //client.read_tun();
+    ////client.enc.build_hostname(b"AAA", &client.domain, 255);
+    //client.send_ping();
+    Client::new(
         client::ProtocolVersion::V502,
         "t2.adrian-s.de".to_string(),
-        //"40.113.151.92".to_string(),
         "127.0.0.1".to_string(),
         53,
-    ) {
-            Ok(client) => client,
-            Err(err) => return eprintln!("{}", err)
-        };
-    client.init("secretpassword".to_string());
+        "secretpassword".to_string());
+
+    //const TIMEOUT: Duration = Duration::from_secs(1);
+    //let mut now = SystemTime::now();
+    //loop {
+    //    if now.elapsed().unwrap() > TIMEOUT {
+    //        println!("Send ping!");
+    //        now = SystemTime::now();
+    //        continue;
+    //    }
+    //    // read tun
+    //    //
+    //}
 
     //client.upstream_encoding_handshake();
 
