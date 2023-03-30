@@ -47,7 +47,7 @@ impl Client {
         hasher.finalize().try_into().expect("HASH ERR")
     }
 
-    /// On success returns string: "server_ip-client_ip-mtu-netmask"
+    /// On success returns string: `<server_ip>-<client_ip>-<mtu-netmask>`
     pub fn login_handshake(&self, password: String, challenge: u32, uid: u8) -> anyhow::Result<(String, String, String, String)> {
         //  1 byte user id
         // 16 byte md5 hash

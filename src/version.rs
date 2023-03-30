@@ -5,6 +5,9 @@ impl Client {
     /// Sends client version to server.
     /// On success returns a tuple of (login_challenge, user_id)
     pub fn send_version(&self) -> anyhow::Result<(u32, u8)> {
+
+        // 4 byte version
+        // 2 byte cmc
         let bytes = [
             (self.version as u32).to_be_bytes().as_slice(),
             rand::random::<u16>().to_be_bytes().as_slice()
