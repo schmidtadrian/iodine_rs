@@ -1,10 +1,12 @@
+use std::time::{Duration, SystemTime};
+
 use client::Client;
 
 mod constants;
 mod tun;
 mod base32;
 mod dns;
-mod trust_dns;
+mod ping;
 mod client;
 mod util;
 mod encoder;
@@ -26,27 +28,27 @@ fn main() {
     //client.read_tun();
     ////client.enc.build_hostname(b"AAA", &client.domain, 255);
     //client.send_ping();
-    let client = Client::new(
+    let mut client = match Client::new(
         client::ProtocolVersion::V502,
         "t2.adrian-s.de".to_string(),
         "127.0.0.1".to_string(),
         53,
-        "secretpassword".to_string());
-    if let Err(err) = client {
-        eprintln!("{}", err);
-    }
+        "secretpassword".to_string()) {
+            Ok(client) => client,
+            Err(err) => return eprintln!("{}", err)
+        };
 
-    //const TIMEOUT: Duration = Duration::from_secs(1);
-    //let mut now = SystemTime::now();
-    //loop {
-    //    if now.elapsed().unwrap() > TIMEOUT {
-    //        println!("Send ping!");
-    //        now = SystemTime::now();
-    //        continue;
-    //    }
-    //    // read tun
-    //    //
-    //}
+    const TIMEOUT: Duration = Duration::from_secs(1);
+    let mut now = SystemTime::now();
+    loop {
+        if now.elapsed().unwrap() > TIMEOUT {
+            client.send_ping();
+            now = SystemTime::now();
+            continue;
+        }
+        // read tun
+        //
+    }
 
     //client.upstream_encoding_handshake();
 

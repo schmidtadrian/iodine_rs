@@ -13,7 +13,8 @@ use trust_dns_client::{client::SyncClient, udp::UdpClientConnection, op::Edns};
 
 pub struct DnsClient {
     client: SyncClient<UdpClientConnection>,
-    edns: Option<Edns>
+    edns: Option<Edns>,
+    chunk_id: u16
 }
 
 impl DnsClient {
@@ -24,17 +25,25 @@ impl DnsClient {
         // also throws ClientError
         let conn = UdpClientConnection::new(addr).map_err(DnsError::Connection)?;
 
-        Ok(DnsClient { client: SyncClient::new(conn), edns: None })
+        Ok(DnsClient { client: SyncClient::new(conn), edns: None, chunk_id: rand::random() })
     }
 
-    pub fn new_msg(&self, url: String) -> Result<Message, DnsError> {
+    pub fn chunk_id(&mut self) -> u16 {
+        self.chunk_id = match self.chunk_id.checked_add(7727) {
+            Some(val) => val,
+            None => 7727-(u16::MAX-self.chunk_id)
+        };
+        self.chunk_id
+    }
+
+    pub fn new_msg(&mut self, url: String) -> Result<Message, DnsError> {
         let mut msg = Message::new();
         msg.add_query({
             let mut query = Query::query(Name::from_ascii(url)?, RecordType::TXT);
             query.set_query_class(DNSClass::IN);
             query
         })
-        .set_id(rand::random::<u16>())
+        .set_id(self.chunk_id())
         .set_message_type(MessageType::Query)
         .set_op_code(trust_dns_client::op::OpCode::Query)
         .set_recursion_desired(true);
@@ -52,8 +61,9 @@ impl DnsClient {
         Ok(data.to_string())
     }
 
-    pub fn query(&self, url: String) -> Result<String, DnsError> {
-        self.query_msg(self.new_msg(url)?)
+    pub fn query(&mut self, url: String) -> Result<String, DnsError> {
+        let msg = self.new_msg(url)?;
+        self.query_msg(msg)
     }
 
     pub fn use_edns(&mut self, flag: bool) {
