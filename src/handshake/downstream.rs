@@ -21,7 +21,6 @@ impl ClientHandshake {
         let url = self.encoder.encode(&bytes, 'n', &self.domain);
         let response = self.dns_client.query(url)?;
         let data = self.encoder.decode(response)?;
-        println!("HI: {:?}", data);
 
         if let Ok(s) = std::str::from_utf8(&data) {
             if s.contains("BADFRAG") { return Err(FragError::FragSize.into()) }
