@@ -1,21 +1,21 @@
 use client::Client;
-use data_encoding::Specification;
-use dns::dns_encode;
-use down_enc::DOWN_CODEC_CHECK;
-use tokio::net::UdpSocket;
 
-
+mod constants;
 mod tun;
-mod version;
 mod base32;
 mod dns;
 mod trust_dns;
 mod client;
-mod login;
-mod down_enc;
 mod util;
-
-const IF_NAME: &str = "tun1";
+mod encoder;
+mod handshake {
+    pub mod client;
+    pub mod version;
+    pub mod login;
+    pub mod edns;
+    pub mod downstream;
+    pub mod constants;
+}
 
 
 //#[tokio::main]
@@ -26,12 +26,15 @@ fn main() {
     //client.read_tun();
     ////client.enc.build_hostname(b"AAA", &client.domain, 255);
     //client.send_ping();
-    Client::new(
+    let client = Client::new(
         client::ProtocolVersion::V502,
         "t2.adrian-s.de".to_string(),
         "127.0.0.1".to_string(),
         53,
         "secretpassword".to_string());
+    if let Err(err) = client {
+        eprintln!("{}", err);
+    }
 
     //const TIMEOUT: Duration = Duration::from_secs(1);
     //let mut now = SystemTime::now();

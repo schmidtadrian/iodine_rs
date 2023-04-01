@@ -1,164 +1,87 @@
-use bitfield::bitfield;
-use serde::{Serialize, Deserialize};
+use thiserror::Error;
+use trust_dns_client::client::Client;
+use trust_dns_client::error::ClientError;
+use trust_dns_client::op::MessageType;
+use trust_dns_client::proto::error::ProtoError;
+use trust_dns_client::rr::DNSClass;
+use trust_dns_client::rr::Name;
+use trust_dns_client::op::Query;
+use trust_dns_client::op::Message;
+use trust_dns_client::rr::RecordType;
+use trust_dns_client::{client::SyncClient, udp::UdpClientConnection, op::Edns};
 
-const TYPE: u16 = 65432;
 
-#[derive(Serialize, Deserialize)]
-pub struct Query {
-    pub id: u16,
-    pub flags: u16,
-    pub qd_count: u16,
-    pub an_count: u16,
-    pub ns_count: u16,
-    pub ar_count: u16,
-    //pub url: String,
-    //pub q_type: u16,
-    //pub class: u16
+pub struct DnsClient {
+    client: SyncClient<UdpClientConnection>,
+    edns: Option<Edns>
 }
 
-//impl Query {
-//    pub fn serialize(&self) -> Vec<u8> {
-//        let a = self.url.as_bytes();
-//        let b = self.id.to_be_bytes();
-//        let c = a.concat();
-//        [
-//            self.id.to_be_bytes(),
-//            self.flags.to_be_bytes(),
-//            self.qd_count.to_be_bytes(),
-//            self.an_count.to_be_bytes(),
-//            self.ns_count.to_be_bytes(),
-//            self.ar_count.to_be_bytes(),
-//            self.url.as_bytes().concat()
-//            self.q_type.to_be_bytes(),
-//            self.class.to_be_bytes()
-//        ].concat()
-//    }
-//}
+impl DnsClient {
+    /// `socket` - e. g. "1.1.1.1:53", no support for hostnames
+    pub fn new(socket: String) -> Result<Self, DnsError> {
+        let addr = socket.parse().unwrap();
+        // mapping error, bc trust_dns_client::client::client::Client in DnsClient::query_msg
+        // also throws ClientError
+        let conn = UdpClientConnection::new(addr).map_err(DnsError::Connection)?;
 
-bitfield! {
-    #[derive(Serialize, Deserialize)]
-    pub struct DnsHeader([u8]);
-    u8;
-    // first & second byte
-    pub u16, get_id,      set_id:       15, 0;
-/*  // BIG ENDIAN ORDER
-    // fields in third byte
-    pub get_qr,      set_qr:          16;
-    pub get_opcode,  set_opcode:  20, 17;
-    pub get_aa,      set_aa:          21;
-    pub get_tc,      set_tc:          22;
-    pub get_rd,      set_rd:          23;
-    // fields in fourth byte
-    pub get_ra,      set_ra:          24;
-    pub get_unused,  set_unused:      25;
-    pub get_ad,      set_ad:          26;
-    pub get_cd,      set_cd:          27;
-    pub get_rcode,   set_rcode:   31, 28;
-*/
-    // LITTLE ENDIAN ORDER
-    // fields in third byte
-    pub get_rd,      set_rd:          16;   // recursion desired
-    pub get_tc,      set_tc:          17;   // truncated message
-    pub get_aa,      set_aa:          18;   // authoritive answer
-    pub get_opcode,  set_opcode:  22, 19;   // purpose of message
-    pub get_qr,      set_qr:          23;   // response flag
-    // fields in fourth byte
-    pub get_rcode,   set_rcode:   27, 24;   // response code
-    pub get_cd,      set_cd:          28;   // checking disabled by resolver
-    pub get_ad,      set_ad:          29;   // authentic data from named
-    pub get_unused,  set_unused:      30;   // unused bits
-    pub get_ra,      set_ra:          31;   // recursion available
-
-    // remaining bytes
-    pub u16, get_qdcount, set_qdcount: 47, 32;   // num of question entries
-    pub u16, get_ancount, set_ancount: 63, 48;   // num of answer entries
-    pub u16, get_nscount, set_nscount: 79, 64;   // num of authority entries
-    pub u16, get_arcount, set_arcount: 95, 80;   // num of resource entries
-}
-
-#[repr(C, packed)]
-#[derive(Serialize, Clone, Copy)]
-pub struct DnsBody {
-    t: u16,
-    ns_c: u16,
-    //root: u8,
-    //opt: u16,
-    //payload_size: u16,
-    //edns_version: u16,
-    //z: u16,
-    //data_length: u16
-}
-
-//#[repr(C, packed)]
-#[derive(Serialize)]
-pub struct DnsPacket {
-    a: DnsHeader<[u8; 15]>,
-    url: String,
-    b: DnsBody
-}
-
-pub fn dns_encode(url: String, mut id: u16, mut id_prev: u16, mut id_prev_2: u16) -> Vec<u8> {
-    id_prev_2 = id_prev;
-    id_prev = id;
-    id += 7727;
-
-    if id == 0 {
-        // 0 is used as "no-query" by server
-        id = 7727
+        Ok(DnsClient { client: SyncClient::new(conn), edns: None })
     }
 
-    let mut header = DnsHeader([0; 15]);
-    header.set_id(id.to_be());
-    header.set_qr(false);
-    header.set_opcode(0);
-    header.set_aa(false);
-    header.set_tc(false);
-    header.set_rd(true);
-    header.set_ra(false);
-    header.set_qdcount(1_u16.to_be());
-    header.set_ancount(91_u16.to_be());
-    header.set_nscount(92_u16.to_be());
-    header.set_arcount(93_u16.to_be());
-    //header.set_arcount(1_u16.to_be());
+    pub fn new_msg(&self, url: String) -> Result<Message, DnsError> {
+        let mut msg = Message::new();
+        msg.add_query({
+            let mut query = Query::query(Name::from_ascii(url)?, RecordType::TXT);
+            query.set_query_class(DNSClass::IN);
+            query
+        })
+        .set_id(rand::random::<u16>())
+        .set_message_type(MessageType::Query)
+        .set_op_code(trust_dns_client::op::OpCode::Query)
+        .set_recursion_desired(true);
 
-    let body = DnsBody {
-        t: TYPE,
-        ns_c: 1,
-        //root: 0,
-        //opt: 41,
-        //payload_size: 4096,
-        //edns_version: 0,
-        //z: 32768,
-        //data_length: 0 
-    };
+        if let Some(edns) = &self.edns {
+            msg.set_edns(edns.to_owned());
+        }
 
-    //DnsPacket {
-    //    a: header,
-    //    url: url.clone(),
-    //    b: body,
-    //}
+        Ok(msg)
+    }
 
-    //header
-    let q = Query {
-        id: id.to_be(),
-        flags: 0x0100_u16.to_be(),
-        qd_count: 1_u16.to_be(),
-        an_count: 0_u16.to_be(),
-        ns_count: 0_u16.to_be(),
-        ar_count: 1_u16.to_be(),
-        //url: url.into_bytes(),
-        //q_type: TYPE.to_be(),
-        //class: 1_u16.to_be()
-    };
+    pub fn query_msg(&self, msg: Message) -> Result<String, DnsError> {
+        let response = self.client.send(msg).first().ok_or(DnsError::NoResponse)?.to_owned()?;
+        let data = response.answers().first().ok_or(DnsError::NoAnswer)?.data().ok_or(DnsError::NoData)?;
+        Ok(data.to_string())
+    }
 
-    let s_head = bincode::serialize(&q).unwrap();
-    println!("{}, find {}", url, url.find('.').unwrap());
-    let s_url = [url.len().to_be_bytes().to_vec(), url.into_bytes()].concat();
-    let s_foot = bincode::serialize(&body).unwrap();
-    println!("Head: {:?}", s_head);
-    println!("URL: {:?}", s_url);
-    println!("Foot: {:?}", s_foot);
-    let x = [bincode::serialize(&q).unwrap(), s_url, bincode::serialize(&body).unwrap()].concat();
-    println!("{:?}", x);
-    x
+    pub fn query(&self, url: String) -> Result<String, DnsError> {
+        self.query_msg(self.new_msg(url)?)
+    }
+
+    pub fn use_edns(&mut self, flag: bool) {
+        self.edns = match flag {
+            true => {
+                let mut edns = Edns::new();
+                edns.set_max_payload(4096);
+                Some(edns)
+            },
+            false => None
+        }
+    }
+
 }
+
+#[derive(Error, Debug)]
+pub enum DnsError {
+    #[error("Couldn't connect to server! {0}")]
+    Connection(ClientError),
+    #[error("Error sending query: {0}")]
+    Send(#[from] trust_dns_client::error::ClientError),
+    #[error("Couldn't encode data in dns query: {0}")]
+    InvalidCharater(#[from] ProtoError),
+    #[error("No response received")]
+    NoResponse,
+    #[error("Response contains no records")]
+    NoAnswer,
+    #[error("Response contains no data")]
+    NoData,
+}
+

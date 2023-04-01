@@ -1,6 +1,7 @@
-use data_encoding::Encoding;
-use trust_dns_client::{client::SyncClient, udp::UdpClientConnection, op::Edns};
-use crate::{base32::SYMBOLS, trust_dns::connect, tun::create_dev};
+use crate::handshake::client::ClientHandshake;
+use crate::encoder::Encoder;
+use crate::dns::DnsClient;
+use crate::tun::create_dev;
 
 
 #[derive(Clone, Copy)]
@@ -28,15 +29,17 @@ impl Packet {
 pub struct Client {
     pub version: ProtocolVersion,
     pub domain: String,
-    pub encoder: Encoding,
-    pub dns: SyncClient<UdpClientConnection>,
-    pub edns: Option<Edns>,
+    pub encoder: Encoder,
+    pub dns_client: DnsClient,
     pub tun: tun::platform::Device,
     pub out_pkt: Packet,
     pub in_pkt: Packet,
     pub cmc: u16,
-    pub uid: u8
+    pub uid: u8,
+    pub frag_size: u16
 }
+
+
 
 impl Client {
     pub fn new(
@@ -47,29 +50,18 @@ impl Client {
         password: String
     ) -> anyhow::Result<Client> {
 
-        let mut cmc = rand::random::<u16>();
-        let encoder = Self::make_encoding(SYMBOLS).unwrap();
-        let dns = connect(nameserver + ":" + &port.to_string()).unwrap(); // REMOVE UNWRAP
-        let (challenge, user_id) = Self::version_handshake(&dns, version as u32, &mut cmc, &domain, &encoder)?;
-        let (server_ip, client_ip, mtu, netmask) = Self::login_handshake(password, challenge, user_id, &domain, &mut cmc, &encoder, &dns)?;
+        let mut handshake = ClientHandshake::new(version, domain.to_string(), nameserver, port.to_string())?;
+        let (challenge, user_id) = handshake.version_handshake()?;
+        let (server_ip, client_ip, mtu, netmask) = handshake.login_handshake(password, challenge, user_id)?;
         let tun = create_dev("tun0".to_string(), client_ip, netmask, mtu, false);
-        let edns = Self::edns0_check(&domain, &mut cmc, &encoder, &dns)?;
-        Self::set_downstream_encoding(user_id, &domain, &encoder, &dns, &edns)?;
-        Self::set_downstream_frag_size(user_id, 696, &domain, &mut cmc, &encoder, &dns, &edns)?;
+        handshake.edns_check()?;
+        handshake.set_downstream_encoding(user_id)?;
+        let frag_size = handshake.set_downstream_frag_size(user_id, 696)?;
 
-        let client = Client {
-            version,
-            domain,
-            encoder,
-            dns,
-            edns,
-            tun,
-            out_pkt: Default::default(),
-            in_pkt: Default::default(),
-            cmc,
-            uid: user_id
-        };
-
-        Ok(client)
+        Ok(Client {
+            version, domain, tun, uid: user_id, frag_size, 
+            out_pkt: Default::default(), in_pkt: Default::default(),
+            encoder: handshake.encoder, dns_client: handshake.dns_client, cmc: handshake.cmc
+        })
     }
 }
