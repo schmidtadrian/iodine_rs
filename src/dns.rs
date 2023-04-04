@@ -1,12 +1,15 @@
 use thiserror::Error;
 use trust_dns_client::client::Client;
 use trust_dns_client::error::ClientError;
+use trust_dns_client::op::DnsResponse;
+use trust_dns_client::op::Header;
 use trust_dns_client::op::MessageType;
 use trust_dns_client::proto::error::ProtoError;
 use trust_dns_client::rr::DNSClass;
 use trust_dns_client::rr::Name;
 use trust_dns_client::op::Query;
 use trust_dns_client::op::Message;
+use trust_dns_client::rr::Record;
 use trust_dns_client::rr::RecordType;
 use trust_dns_client::{client::SyncClient, udp::UdpClientConnection, op::Edns};
 
@@ -55,15 +58,42 @@ impl DnsClient {
         Ok(msg)
     }
 
-    pub fn query_msg(&self, msg: Message) -> Result<String, DnsError> {
-        let response = self.client.send(msg).first().ok_or(DnsError::NoResponse)?.to_owned()?;
-        let data = response.answers().first().ok_or(DnsError::NoAnswer)?.data().ok_or(DnsError::NoData)?;
-        Ok(data.to_string())
+    //pub fn query_msg(&self, msg: Message) -> Result<String, DnsError> {
+    //    let response = self.client.send(msg).first().ok_or(DnsError::NoResponse)?.to_owned()?;
+    //    let data = response.answers().first().ok_or(DnsError::NoAnswer)?.data().ok_or(DnsError::NoData)?;
+    //    Ok(data.to_string())
+    //}
+
+    // url & data
+    // return none if not p or uid
+    //
+    pub fn query_msg(&self, msg: Message) -> Result<DnsResponse, DnsError> {
+        Ok(self.client.send(msg)
+            .first().ok_or(DnsError::NoResponse)?
+            .to_owned()?
+        )
     }
 
-    pub fn query(&mut self, url: String) -> Result<String, DnsError> {
+    pub fn query(&mut self, url: String) -> Result<DnsResponse, DnsError> {
         let msg = self.new_msg(url)?;
         self.query_msg(msg)
+    }
+
+    pub fn query_record(&mut self, url: String) -> Result<(Header, Record), DnsError> {
+        let msg = self.new_msg(url)?;
+        let response = self.query_msg(msg)?;
+        Ok((
+            *response.header(),
+            response.answers().first().ok_or(DnsError::NoAnswer)?.to_owned()
+        ))
+    }
+
+    pub fn query_data(&mut self, url: String) -> Result<String, DnsError> {
+        let msg = self.new_msg(url)?;
+        let response = self.query_msg(msg)?;
+        let record = response.answers().first().ok_or(DnsError::NoAnswer)?;
+        let data = record.data().ok_or(DnsError::NoData)?;
+        Ok(data.to_string())
     }
 
     pub fn use_edns(&mut self, flag: bool) {

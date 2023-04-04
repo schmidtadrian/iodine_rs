@@ -51,7 +51,7 @@ impl ClientHandshake {
         ].concat();
 
         let url = self.encoder.encode(bytes, 'l', &self.domain);
-        let response = self.dns_client.query(url)?;
+        let response = self.dns_client.query_data(url)?;
         let data = self.encoder.decode_to_string(response)?;
 
 

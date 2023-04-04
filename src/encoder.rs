@@ -5,7 +5,7 @@ use thiserror::Error;
 
 
 pub struct Encoder {
-    encoding: Encoding
+    pub encoding: Encoding
 }
 
 impl Encoder {
@@ -17,6 +17,10 @@ impl Encoder {
 
     pub fn encode(&self, data: &[u8], cmd: char, domain: &String) -> String {
         cmd.to_string() + &self.encoding.encode(data) + "." + domain
+    }
+
+    pub fn encode_data(&self, data: &[u8], domain: &String) -> String {
+        self.encoding.encode(data) + "." + domain
     }
 
     pub fn decode(&self, data: String) -> Result<Vec<u8>, EncodingError> {

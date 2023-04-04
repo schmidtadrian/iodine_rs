@@ -5,6 +5,7 @@ use std::io::{Read, Write};
 
 use anyhow::Context;
 use flate2::Compression;
+use flate2::read::ZlibDecoder;
 use flate2::write::ZlibEncoder;
 
 use crate::client::Packet;
@@ -40,19 +41,60 @@ pub fn create_dev(name: String, ip: IpAddr, netmask: u32, mtu: i32, pkt_info: bo
 
 
 impl crate::client::Client {
-    pub fn read_tun(&mut self) {
+    pub fn is_sending(&mut self) -> bool {
+        !self.out_pkt.data.is_empty()
+    }
+
+
+    pub fn read_tun(&mut self) -> anyhow::Result<Option<()>>{
         // read from tun
-        //let mut in_buf = [0; 64*1024];
-        //let in_len = self.tun.as_mut().unwrap().read(&mut in_buf).unwrap();
-        let in_buf = "AAA".as_bytes();
+
+        if self.is_sending() {
+            println!("Not reading from tun bc sending");
+            return Ok(None)
+        }
+        println!("Reading from tun");
+        let mut in_buf = [0; 64*1024];
+
+        // early exit if we are currently sending data or read 0 bytes
+        // read blocks if tun is empty
+        let in_size = self.tun.read(&mut in_buf)?;
+        if in_size == 0 {
+            println!("Tun is empty");
+            return Ok(None)
+        }
+
+        //if self.is_sending() || self.tun.read(&mut in_buf)? == 0 {
+        //    return Ok(None)
+        //}
 
         // compress 
-        let mut enc = ZlibEncoder::new(Vec::new(), Compression::new(9));
-        enc.write_all(in_buf).unwrap();
-        let out_buf = enc.finish().unwrap();
+        // for small buffers the encoded data is bigger than before
+        // TODO I guess its better to keep encoder & resetting it instead of creating a new one each time
+        let mut enc = ZlibEncoder::new(Vec::new(), Compression::new(8));
+        enc.write_all(&in_buf[..in_size])?;
+        let out_buf = enc.finish()?;
 
-        self.out_pkt = Packet { data: out_buf, ..*self.out_pkt.inc_seq_no() };
-        //println!("Dec: {:?}", in_buf);
-        //println!("Enc: {:?}", out_buf);
+        self.out_pkt.reset_out(&out_buf);
+
+        #[cfg(debug_assertions)] {
+            println!("Written {}/{} bytes to upstream data (raw/enc)", in_size, self.out_pkt.data.len());
+            //println!("R({}): {:?}", in_len, &in_buf[..in_size]);
+            //println!("E({}): {:?}", out_buf.len(), &out_buf);
+        }
+
+        Ok(Some(()))
+    }
+
+    /// Decompresses `self.in_pkt.data` and writes it to `self.tun`
+    /// On success `self.in_pkt.data` gets cleared
+    pub fn write_tun(&mut self) -> anyhow::Result<()> {
+        // TODO I guess its better to keep decoder & resetting it instead of creating a new one each time
+        let mut dec = ZlibDecoder::new(self.in_pkt.data.as_slice());
+        let mut buf = Vec::new();
+        dec.read_to_end(&mut buf)?;
+        self.tun.write_all(&buf)?;
+        self.in_pkt.data.clear();
+        Ok(())
     }
 }

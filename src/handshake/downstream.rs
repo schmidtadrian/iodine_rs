@@ -19,7 +19,7 @@ impl ClientHandshake {
         ].concat();
 
         let url = self.encoder.encode(&bytes, 'n', &self.domain);
-        let response = self.dns_client.query(url)?;
+        let response = self.dns_client.query_data(url)?;
         let data = self.encoder.decode(response)?;
 
         if let Ok(s) = std::str::from_utf8(&data) {
@@ -38,7 +38,7 @@ impl ClientHandshake {
         // 1 char  base32 encoded user id
         // 3 chars base32 encoded
         let url = format!("o{}t{}.{}", b32_5to8(uid), cmc_b32_5to8(&mut self.cmc), &self.domain);
-        let response = self.dns_client.query(url)?;
+        let response = self.dns_client.query_data(url)?;
         let data = self.encoder.decode_to_string(response)?;
 
         match data {
