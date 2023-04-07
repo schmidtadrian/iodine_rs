@@ -9,6 +9,7 @@ use flate2::read::ZlibDecoder;
 use flate2::write::ZlibEncoder;
 
 use crate::client::Packet;
+use crate::constants::MAX_MTU;
 
 /// Creates TUN dev.
 /// Panicks on invalid parameters or insufficient privileges
@@ -19,7 +20,7 @@ pub fn create_dev(name: String, ip: IpAddr, netmask: u32, mtu: i32, pkt_info: bo
     config.name(&name)
         .address(ip)
         .netmask((mask[0], mask[1], mask[2], mask[3]))
-        .mtu(mtu)
+        .mtu(mtu.min(MAX_MTU))
         .up();
     
     #[cfg(target_os = "linux")]
@@ -54,7 +55,7 @@ impl crate::client::Client {
             return Ok(None)
         }
         println!("Reading from tun");
-        let mut in_buf = [0; 64*1024];
+        let mut in_buf = [0; 2*1024];
 
         // early exit if we are currently sending data or read 0 bytes
         // read blocks if tun is empty
@@ -93,6 +94,10 @@ impl crate::client::Client {
         let mut dec = ZlibDecoder::new(self.in_pkt.data.as_slice());
         let mut buf = Vec::new();
         dec.read_to_end(&mut buf)?;
+
+        #[cfg(debug_assertions)]
+        println!("Decompressed: {} to {} bytes", self.in_pkt.data.len(), buf.len());
+
         self.tun.write_all(&buf)?;
         self.in_pkt.data.clear();
         Ok(())

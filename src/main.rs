@@ -1,5 +1,6 @@
 use std::time::{Duration, SystemTime};
 use client::Client;
+use trust_dns_client::{rr::Record, op::Header};
 
 mod constants;
 mod tun;
@@ -9,8 +10,7 @@ mod client;
 mod util;
 mod encoder;
 mod downstream;
-mod upstream;
-mod handshake {
+mod upstream; mod handshake {
     pub mod client;
     pub mod version;
     pub mod login;
@@ -44,38 +44,55 @@ fn main() {
 
 
     const TIMEOUT: Duration = Duration::from_secs(3);
-    let mut now = SystemTime::now();
+    let mut now: SystemTime;// = SystemTime::now();
+
+    let mut ping_at = SystemTime::now().checked_add(TIMEOUT).unwrap();
+    let mut unhandled_downstream: Option<(Header, Record)> = None;
+
     loop {
-        if now.elapsed().unwrap() > TIMEOUT {
-            if let Err(err) = client.send_ping() {
-                eprintln!("PING ERROR: {}", err);
+        now = SystemTime::now();
+        if now > ping_at {
+            match client.send_ping() {
+                Ok(resp) => {
+                    println!("Saving Ping response!");
+                    unhandled_downstream = Some(resp)
+                },
+                Err(err) => eprintln!("PING ERROR: {}", err)
             }
-            now = SystemTime::now();
+            ping_at = now.checked_add(TIMEOUT).unwrap();
             continue;
         }
         // read tun
         // None --> did not read & dont send upstream data
         // Some --> compressed data from tun into client.out_pkt.data
-        if let Err(err) =  client.read_tun() {
-            eprintln!("{}", err);
+        if unhandled_downstream.is_none() {
+            if let Err(err) =  client.read_tun() {
+                eprintln!("{}", err);
+            }
+
+            unhandled_downstream = match client.upstream() {
+                Ok(option) => match option {
+                    Some(resp) => Some(resp),
+                    None => continue,
+                }
+                Err(err) => {
+                    eprintln!("upstream err: {}", err);
+                    return;
+                },
+            };
         }
 
-        let (header, record) = match client.upstream() {
-            Ok(option) => match option {
-                Some((hdr, rec)) => (hdr, rec),
-                None => continue,
+
+        if let Some((header, record)) = unhandled_downstream {
+            println!("handle downstream");
+            match client.handle_downstream(header, record, &mut ping_at) {
+                Ok(opt) => match opt {
+                    Some(_) => {},
+                    None => eprintln!("Received invalid data"),
+                },
+                Err(err) => eprintln!("downstream err: {}", err),
             }
-            Err(err) => {
-                eprintln!("upstream err: {}", err);
-                return;
-            },
-        };
-        match client.handle_downstream(header, record) {
-            Ok(opt) => match opt {
-                Some(_) => {},
-                None => eprintln!("Received invalid data"),
-            },
-            Err(err) => eprintln!("downstream err: {}", err),
+            unhandled_downstream = None;
         }
     }
 }

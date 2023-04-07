@@ -1,3 +1,5 @@
+use std::time::{Duration, SystemTime};
+
 use trust_dns_client::{op::Header, rr::Record};
 
 use crate::{client::{Client, Packet}, dns::DnsError};
@@ -21,7 +23,7 @@ impl Client {
         }
     }
 
-    pub fn handle_downstream(&mut self, header: Header, record: Record) -> anyhow::Result<Option<()>> {
+    pub fn handle_downstream(&mut self, header: Header, record: Record, ping_at: &mut SystemTime, ) -> anyhow::Result<Option<()>> {
 
         // only continue for ping and data messages
         if !record.name().to_ascii().starts_with(
@@ -42,22 +44,37 @@ impl Client {
         // decode the data
         let header = self.parse_header(decoded[..2].try_into()?);
 
-        if decoded.len() > 2 {
-            println!("GOT DATA");
-            // on a new seq no forget the old stuff
-            if header.downstream_seqno != self.in_pkt.seq_no {
-                //self.in_pkt = Packet { seq_no: header.downstream_seqno, fragment: header.downstream_frag, ..Default::default() }
-                self.in_pkt.reset_in(header.downstream_seqno, header.downstream_frag)
-            } else {
-                self.in_pkt.fragment = header.downstream_frag
-            }
-            self.in_pkt.data.extend_from_slice(&decoded[2..]);
+        let _:Option<()> = 'block: {
+            if decoded.len() > 2 {
+                println!("GOT DATA");
+                // on a new seq no forget the old stuff
+                if header.downstream_seqno != self.in_pkt.seq_no {
+                    //self.in_pkt = Packet { seq_no: header.downstream_seqno, fragment: header.downstream_frag, ..Default::default() }
+                    println!("NEW SEQ NO --> FORGET OLD STUFF");
+                    self.in_pkt.reset_in(header.downstream_seqno, header.downstream_frag)
+                } else if header.downstream_frag <= self.in_pkt.fragment {
+                    println!("Ignoring duplicate frag no");
+                    break 'block None
+                } else {
+                    self.in_pkt.fragment = header.downstream_frag
+                }
+                self.in_pkt.data.extend_from_slice(&decoded[2..]);
 
-            if header.last_fragment { 
-                self.write_tun()?
-            }
-        }
+                if header.last_fragment { 
+                    println!("LAST FRAG!");
+                    self.write_tun()?
+                }
+                if self.in_pkt.data.is_empty() {
+                    *ping_at = SystemTime::now().checked_add(Duration::from_millis(0)).unwrap();
+                } else {
+                    #[cfg(debug_assertions)]
+                    println!("Server has more to send!");
 
+                    *ping_at = SystemTime::now().checked_add(Duration::from_millis(0)).unwrap();
+                }
+            }
+            None
+        };
 
         if self.is_sending() {
 
@@ -87,6 +104,13 @@ impl Client {
                     self.out_pkt.fragment += 1;
                 }
             }
+        } else {
+            #[cfg(debug_assertions)]
+            println!("Got ack for {},{} - expecting {},{} ({} data bytes) PING RESP",
+                header.upstream_ack_seqno, header.upstream_ack_frag,
+                self.out_pkt.seq_no, self.out_pkt.fragment,
+                decoded.len()
+            );
         }
 
         Ok(Some(()))

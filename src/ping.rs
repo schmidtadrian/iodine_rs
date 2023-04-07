@@ -5,7 +5,6 @@ use crate::{util::cmc, dns::DnsError};
 impl crate::client::Client {
 
     pub fn send_ping(&mut self) -> Result<(Header, Record), DnsError>{
-        println!("PINGING");
         // 1 byte user id
         // 1 byte with:
         //      1 bit unused (MSB)
@@ -19,8 +18,10 @@ impl crate::client::Client {
             cmc[0], cmc[1]
         ];
 
+        #[cfg(debug_assertions)]
+        println!("PING: {}/{}", self.in_pkt.seq_no, self.in_pkt.fragment);
+
         let url = self.encoder.encode(bytes, 'p', &self.domain);
-        println!("PING: {}", url);
         self.dns_client.query_record(url)
     }
 
