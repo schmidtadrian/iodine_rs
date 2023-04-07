@@ -2,18 +2,20 @@
 use std::net::IpAddr;
 use std::process;
 use std::io::{Read, Write};
+use std::time::Duration;
 
 use anyhow::Context;
 use flate2::Compression;
 use flate2::read::ZlibDecoder;
 use flate2::write::ZlibEncoder;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::time::timeout;
 
-use crate::client::Packet;
 use crate::constants::MAX_MTU;
 
 /// Creates TUN dev.
 /// Panicks on invalid parameters or insufficient privileges
-pub fn create_dev(name: String, ip: IpAddr, netmask: u32, mtu: i32, pkt_info: bool) -> tun::platform::Device {
+pub fn create_dev(name: String, ip: IpAddr, netmask: u32, mtu: i32, pkt_info: bool) -> tun::AsyncDevice {
     // cidr netmask to byte array
     let mask: [u8; 4] = (u32::MAX << netmask).to_be_bytes();
     let mut config = tun::Configuration::default();
@@ -28,7 +30,7 @@ pub fn create_dev(name: String, ip: IpAddr, netmask: u32, mtu: i32, pkt_info: bo
         config.packet_information(pkt_info);
     });
 
-    match tun::create(&config).with_context(|| "Failed to create tun device".to_string()) {
+    match tun::create_as_async(&config).with_context(|| "Failed to create tun device".to_string()) {
         Ok(dev) => {
             println!("Created dev {} with ip {}/{}", name, ip, netmask);
             dev
@@ -47,7 +49,7 @@ impl crate::client::Client {
     }
 
 
-    pub fn read_tun(&mut self) -> anyhow::Result<Option<()>>{
+    pub async fn read_tun(&mut self) -> anyhow::Result<Option<()>> {
         // read from tun
 
         if self.is_sending() {
@@ -59,7 +61,18 @@ impl crate::client::Client {
 
         // early exit if we are currently sending data or read 0 bytes
         // read blocks if tun is empty
-        let in_size = self.tun.read(&mut in_buf)?;
+        let in_size = match timeout(Duration::from_secs(1), self.tun.read(&mut in_buf)).await {
+            Ok(Ok(size)) => size,
+            Ok(Err(err)) => {
+                eprintln!("{}", err);
+                return Err(err.into());
+            },
+            Err(err) => {
+                eprintln!("{}", err);
+                return Err(err.into());
+            },
+        };
+
         if in_size == 0 {
             println!("Tun is empty");
             return Ok(None)
@@ -89,7 +102,7 @@ impl crate::client::Client {
 
     /// Decompresses `self.in_pkt.data` and writes it to `self.tun`
     /// On success `self.in_pkt.data` gets cleared
-    pub fn write_tun(&mut self) -> anyhow::Result<()> {
+    pub async fn write_tun(&mut self) -> anyhow::Result<()> {
         // TODO I guess its better to keep decoder & resetting it instead of creating a new one each time
         let mut dec = ZlibDecoder::new(self.in_pkt.data.as_slice());
         let mut buf = Vec::new();
@@ -98,7 +111,7 @@ impl crate::client::Client {
         #[cfg(debug_assertions)]
         println!("Decompressed: {} to {} bytes", self.in_pkt.data.len(), buf.len());
 
-        self.tun.write_all(&buf)?;
+        self.tun.write_all(&buf).await?;
         self.in_pkt.data.clear();
         Ok(())
     }

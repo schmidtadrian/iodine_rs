@@ -34,7 +34,7 @@ impl ClientHandshake {
     }
 
     /// On success returns string: `<server_ip>-<client_ip>-<mtu-netmask>`
-    pub fn login_handshake(
+    pub async fn login_handshake(
         &mut self,
         password: String,
         challenge: u32,
@@ -51,7 +51,7 @@ impl ClientHandshake {
         ].concat();
 
         let url = self.encoder.encode(bytes, 'l', &self.domain);
-        let response = self.dns_client.query_data(url)?;
+        let response = self.dns_client.query_data(url).await?;
         let data = self.encoder.decode_to_string(response)?;
 
 

@@ -46,7 +46,7 @@ impl Client {
         header.iter().collect()
     }
 
-    pub fn upstream(&mut self) -> anyhow::Result<Option<(Header, Record)>>{
+    pub async fn upstream(&mut self) -> anyhow::Result<Option<(Header, Record)>>{
 
         let data_len = self.out_pkt.data.len() as u32;
         // all data published
@@ -72,6 +72,6 @@ impl Client {
             //println!("{}{}", header, &data);
         }
 
-        Ok(Some(self.dns_client.query_record(header + &data)?))
+        Ok(Some(self.dns_client.query_record(header + &data).await?))
     }
 }

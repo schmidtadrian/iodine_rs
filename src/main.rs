@@ -20,9 +20,9 @@ mod upstream; mod handshake {
 }
 
 
-//#[tokio::main]
-//async fn main() -> std::io::Result<()> {
-fn main() {
+//fn main() {
+#[tokio::main]
+async fn main() {
 
     #[cfg(debug_assertions)]
     println!("Debug mode");
@@ -34,10 +34,10 @@ fn main() {
         client::ProtocolVersion::V502,
         "t2.adrian-s.de".to_string(),
         //"127.0.0.1".to_string(),
-        //"192.168.178.48".to_string(),
-        "40.113.151.92".to_string(),
+        "192.168.178.48".to_string(),
+        //"40.113.151.92".to_string(),
         53,
-        "secretpassword".to_string()) {
+        "secretpassword".to_string()).await {
             Ok(client) => client,
             Err(err) => return eprintln!("{}", err)
         };
@@ -52,7 +52,7 @@ fn main() {
     loop {
         now = SystemTime::now();
         if now > ping_at {
-            match client.send_ping() {
+            match client.send_ping().await {
                 Ok(resp) => {
                     println!("Saving Ping response!");
                     unhandled_downstream = Some(resp)
@@ -66,11 +66,11 @@ fn main() {
         // None --> did not read & dont send upstream data
         // Some --> compressed data from tun into client.out_pkt.data
         if unhandled_downstream.is_none() {
-            if let Err(err) =  client.read_tun() {
+            if let Err(err) =  client.read_tun().await {
                 eprintln!("{}", err);
             }
 
-            unhandled_downstream = match client.upstream() {
+            unhandled_downstream = match client.upstream().await {
                 Ok(option) => match option {
                     Some(resp) => Some(resp),
                     None => continue,
@@ -85,7 +85,7 @@ fn main() {
 
         if let Some((header, record)) = unhandled_downstream {
             println!("handle downstream");
-            match client.handle_downstream(header, record, &mut ping_at) {
+            match client.handle_downstream(header, record, &mut ping_at).await {
                 Ok(opt) => match opt {
                     Some(_) => {},
                     None => eprintln!("Received invalid data"),

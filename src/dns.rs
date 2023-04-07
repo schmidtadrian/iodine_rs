@@ -1,34 +1,45 @@
+
 use thiserror::Error;
-use trust_dns_client::client::Client;
+use tokio::net::UdpSocket;
+use trust_dns_client::client::AsyncClient;
 use trust_dns_client::error::ClientError;
 use trust_dns_client::op::DnsResponse;
 use trust_dns_client::op::Header;
+use trust_dns_client::op::Message;
 use trust_dns_client::op::MessageType;
+use trust_dns_client::op::Query;
+use trust_dns_client::proto::DnsHandle;
 use trust_dns_client::proto::error::ProtoError;
 use trust_dns_client::rr::DNSClass;
 use trust_dns_client::rr::Name;
-use trust_dns_client::op::Query;
-use trust_dns_client::op::Message;
 use trust_dns_client::rr::Record;
 use trust_dns_client::rr::RecordType;
-use trust_dns_client::{client::SyncClient, udp::UdpClientConnection, op::Edns};
+use trust_dns_client::udp::UdpClientStream;
+use trust_dns_client::op::Edns;
+use trust_dns_proto::xfer::FirstAnswer;
+
 
 
 pub struct DnsClient {
-    client: SyncClient<UdpClientConnection>,
+    client: AsyncClient,
     edns: Option<Edns>,
     chunk_id: u16
 }
 
 impl DnsClient {
     /// `socket` - e. g. "1.1.1.1:53", no support for hostnames
-    pub fn new(socket: String) -> Result<Self, DnsError> {
+    pub async fn new(socket: String) -> Result<Self, DnsError> {
         let addr = socket.parse().unwrap();
         // mapping error, bc trust_dns_client::client::client::Client in DnsClient::query_msg
         // also throws ClientError
-        let conn = UdpClientConnection::new(addr).map_err(DnsError::Connection)?;
 
-        Ok(DnsClient { client: SyncClient::new(conn), edns: None, chunk_id: rand::random() })
+        let client = {
+            let stream = UdpClientStream::<UdpSocket>::new(addr);
+            let (client, bg) = AsyncClient::connect(stream).await.unwrap();
+            tokio::spawn(bg);
+            client
+        };
+        Ok(DnsClient { client, edns: None, chunk_id: rand::random() })
     }
 
     pub fn chunk_id(&mut self) -> u16 {
@@ -67,30 +78,32 @@ impl DnsClient {
     // url & data
     // return none if not p or uid
     //
-    pub fn query_msg(&self, msg: Message) -> Result<DnsResponse, DnsError> {
-        Ok(self.client.send(msg)
-            .first().ok_or(DnsError::NoResponse)?
-            .to_owned()?
-        )
+    pub async fn query_msg(&mut self, msg: Message) -> Result<DnsResponse, DnsError> {
+        Ok(self.client.send(msg).first_answer().await?)
+        //let mut r = Message::from(self.client.send(msg).first_answer().await.unwrap());
+        //Ok(self.client.send(msg)
+        //    .first().ok_or(DnsError::NoResponse)?
+        //    .to_owned()?
+        //)
     }
 
-    pub fn query(&mut self, url: String) -> Result<DnsResponse, DnsError> {
+    pub async fn query(&mut self, url: String) -> Result<DnsResponse, DnsError> {
         let msg = self.new_msg(url)?;
-        self.query_msg(msg)
+        self.query_msg(msg).await
     }
 
-    pub fn query_record(&mut self, url: String) -> Result<(Header, Record), DnsError> {
+    pub async fn query_record(&mut self, url: String) -> Result<(Header, Record), DnsError> {
         let msg = self.new_msg(url)?;
-        let response = self.query_msg(msg)?;
+        let response = self.query_msg(msg).await?;
         Ok((
             *response.header(),
             response.answers().first().ok_or(DnsError::NoAnswer)?.to_owned()
         ))
     }
 
-    pub fn query_data(&mut self, url: String) -> Result<String, DnsError> {
+    pub async fn query_data(&mut self, url: String) -> Result<String, DnsError> {
         let msg = self.new_msg(url)?;
-        let response = self.query_msg(msg)?;
+        let response = self.query_msg(msg).await?;
         let record = response.answers().first().ok_or(DnsError::NoAnswer)?;
         let data = record.data().ok_or(DnsError::NoData)?;
         Ok(data.to_string())

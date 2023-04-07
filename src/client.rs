@@ -7,7 +7,6 @@ use crate::dns::DnsClient;
 use crate::tun::create_dev;
 use crate::util::uid_to_char;
 
-use std::io::{Read, Write};
 
 #[derive(Clone, Copy)]
 pub enum ProtocolVersion {
@@ -60,7 +59,7 @@ pub struct Client {
     pub encoder: Encoder,
     pub dns_client: DnsClient,
     pub compressor: ZlibEncoder<Vec<u8>>,
-    pub tun: tun::platform::Device,
+    pub tun: tun::AsyncDevice,
     pub out_pkt: Packet,
     pub in_pkt: Packet,
     pub cmc: u16,
@@ -73,7 +72,7 @@ pub struct Client {
 
 
 impl Client {
-    pub fn new(
+    pub async  fn new(
         version: ProtocolVersion,
         domain: String,
         nameserver: String,
@@ -81,13 +80,13 @@ impl Client {
         password: String
     ) -> anyhow::Result<Client> {
 
-        let mut handshake = ClientHandshake::new(version, domain.to_string(), nameserver, port.to_string())?;
-        let (challenge, user_id) = handshake.version_handshake()?;
-        let (server_ip, client_ip, mtu, netmask) = handshake.login_handshake(password, challenge, user_id)?;
+        let mut handshake = ClientHandshake::new(version, domain.to_string(), nameserver, port.to_string()).await?;
+        let (challenge, user_id) = handshake.version_handshake().await?;
+        let (server_ip, client_ip, mtu, netmask) = handshake.login_handshake(password, challenge, user_id).await?;
         let tun = create_dev("tun0".to_string(), client_ip, netmask, mtu, true);
-        handshake.edns_check()?;
-        handshake.set_downstream_encoding(user_id)?;
-        let frag_size = handshake.set_downstream_frag_size(user_id, 696)?;
+        handshake.edns_check().await?;
+        handshake.set_downstream_encoding(user_id).await?;
+        let frag_size = handshake.set_downstream_frag_size(user_id, 696).await?;
 
         Ok(Client {
             version, domain, tun, uid: user_id, uid_char: uid_to_char(user_id), frag_size, compressor: ZlibEncoder::new(Vec::new(), Compression::new(9)),

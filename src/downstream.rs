@@ -2,7 +2,7 @@ use std::time::{Duration, SystemTime};
 
 use trust_dns_client::{op::Header, rr::Record};
 
-use crate::{client::{Client, Packet}, dns::DnsError};
+use crate::{client::Client, dns::DnsError};
 
 pub struct DownstreamHeader {
     pub downstream_seqno: u8,
@@ -23,7 +23,7 @@ impl Client {
         }
     }
 
-    pub fn handle_downstream(&mut self, header: Header, record: Record, ping_at: &mut SystemTime, ) -> anyhow::Result<Option<()>> {
+    pub async fn handle_downstream(&mut self, header: Header, record: Record, ping_at: &mut SystemTime, ) -> anyhow::Result<Option<()>> {
 
         // only continue for ping and data messages
         if !record.name().to_ascii().starts_with(
@@ -62,7 +62,7 @@ impl Client {
 
                 if header.last_fragment { 
                     println!("LAST FRAG!");
-                    self.write_tun()?
+                    self.write_tun().await?
                 }
                 if self.in_pkt.data.is_empty() {
                     *ping_at = SystemTime::now().checked_add(Duration::from_millis(0)).unwrap();

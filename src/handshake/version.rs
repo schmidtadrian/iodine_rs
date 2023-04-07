@@ -6,7 +6,7 @@ use super::client::ClientHandshake;
 
 
 impl ClientHandshake {
-    pub fn version_handshake(&mut self) -> anyhow::Result<(u32, u8)> {
+    pub async fn version_handshake(&mut self) -> anyhow::Result<(u32, u8)> {
 
         let version = self.version as u32;
         // 4 byte version
@@ -17,7 +17,7 @@ impl ClientHandshake {
         ].concat();
 
         let url = self.encoder.encode(bytes, 'v', &self.domain);
-        let response = self.dns_client.query_data(url)?;
+        let response = self.dns_client.query_data(url).await?;
         let data = self.encoder.decode(response)?;
 
         // response data:

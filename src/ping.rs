@@ -1,10 +1,10 @@
-use trust_dns_client::{op::{DnsResponse, Header}, rr::Record};
+use trust_dns_client::{op::Header, rr::Record};
 
 use crate::{util::cmc, dns::DnsError};
 
 impl crate::client::Client {
 
-    pub fn send_ping(&mut self) -> Result<(Header, Record), DnsError>{
+    pub async fn send_ping(&mut self) -> Result<(Header, Record), DnsError>{
         // 1 byte user id
         // 1 byte with:
         //      1 bit unused (MSB)
@@ -22,7 +22,7 @@ impl crate::client::Client {
         println!("PING: {}/{}", self.in_pkt.seq_no, self.in_pkt.fragment);
 
         let url = self.encoder.encode(bytes, 'p', &self.domain);
-        self.dns_client.query_record(url)
+        self.dns_client.query_record(url).await
     }
 
 }

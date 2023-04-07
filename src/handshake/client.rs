@@ -11,9 +11,9 @@ pub struct ClientHandshake {
 
 
 impl ClientHandshake {
-    pub fn new(version: ProtocolVersion, domain: String, nameserver: String, port: String) -> anyhow::Result<Self> {
+    pub async fn new(version: ProtocolVersion, domain: String, nameserver: String, port: String) -> anyhow::Result<Self> {
         Ok(ClientHandshake {
-            dns_client: DnsClient::new(nameserver + ":" + &port)?,
+            dns_client: DnsClient::new(nameserver + ":" + &port).await?,
             encoder: Encoder::new(SYMBOLS)?,
             cmc: rand::random(),
             version,

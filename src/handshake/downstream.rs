@@ -7,7 +7,7 @@ use super::client::ClientHandshake;
 
 impl ClientHandshake {
 
-    pub fn set_downstream_frag_size(&mut self, uid: u8, size: u16) -> anyhow::Result<u16> {
+    pub async fn set_downstream_frag_size(&mut self, uid: u8, size: u16) -> anyhow::Result<u16> {
 
         // 1 byte user id
         // 2 byte frag size
@@ -19,7 +19,7 @@ impl ClientHandshake {
         ].concat();
 
         let url = self.encoder.encode(&bytes, 'n', &self.domain);
-        let response = self.dns_client.query_data(url)?;
+        let response = self.dns_client.query_data(url).await?;
         let data = self.encoder.decode(response)?;
 
         if let Ok(s) = std::str::from_utf8(&data) {
@@ -31,14 +31,14 @@ impl ClientHandshake {
         Ok(frag_size)
     }
 
-    pub fn set_downstream_encoding(&mut self, uid: u8) -> anyhow::Result<()> {
+    pub async fn set_downstream_encoding(&mut self, uid: u8) -> anyhow::Result<()> {
 
         // 1 char  cmd
         // 1 char  variant
         // 1 char  base32 encoded user id
         // 3 chars base32 encoded
         let url = format!("o{}t{}.{}", b32_5to8(uid), cmc_b32_5to8(&mut self.cmc), &self.domain);
-        let response = self.dns_client.query_data(url)?;
+        let response = self.dns_client.query_data(url).await?;
         let data = self.encoder.decode_to_string(response)?;
 
         match data {
