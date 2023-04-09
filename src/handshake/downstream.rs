@@ -19,8 +19,8 @@ impl ClientHandshake {
         ].concat();
 
         let url = self.encoder.encode(&bytes, 'n', &self.domain);
-        let response = self.dns_client.query_data(url).await?;
-        let data = self.encoder.decode(response)?;
+        let response = self.dns_client.query_data(url)?;
+        let data = self.encoder.decode_byte(response)?;
 
         if let Ok(s) = std::str::from_utf8(&data) {
             if s.contains("BADFRAG") { return Err(FragError::FragSize.into()) }
@@ -38,8 +38,8 @@ impl ClientHandshake {
         // 1 char  base32 encoded user id
         // 3 chars base32 encoded
         let url = format!("o{}t{}.{}", b32_5to8(uid), cmc_b32_5to8(&mut self.cmc), &self.domain);
-        let response = self.dns_client.query_data(url).await?;
-        let data = self.encoder.decode_to_string(response)?;
+        let response = self.dns_client.query_data(url)?;
+        let data = self.encoder.decode_byte_to_string(response)?;
 
         match data {
             s if s.contains("BADLEN")   => Err(DownEncodingError::MsgLen.into()),

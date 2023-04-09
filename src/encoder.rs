@@ -30,6 +30,14 @@ impl Encoder {
     pub fn decode_to_string(&self, data: String) -> Result<String, EncodingError>{
         Ok(std::str::from_utf8(&self.decode(data)?)?.to_string())
     }
+
+    pub fn decode_byte(&self, data: Vec<u8>) -> Result<Vec<u8>, EncodingError> {
+        Ok(self.encoding.decode(&data[1..])?)
+    }
+
+    pub fn decode_byte_to_string(&self, data: Vec<u8>) -> Result<String, EncodingError>{
+        Ok(std::str::from_utf8(&self.decode_byte(data)?)?.to_string())
+    }
 }
 
 #[derive(Error, Debug)]

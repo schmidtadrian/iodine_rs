@@ -78,7 +78,8 @@ impl Client {
         nameserver: String,
         port: u16,
         password: String
-    ) -> anyhow::Result<Client> {
+    //) -> anyhow::Result<Client> {
+    ) -> anyhow::Result<()> {
 
         let mut handshake = ClientHandshake::new(version, domain.to_string(), nameserver, port.to_string()).await?;
         let (challenge, user_id) = handshake.version_handshake().await?;
@@ -87,11 +88,12 @@ impl Client {
         handshake.edns_check().await?;
         handshake.set_downstream_encoding(user_id).await?;
         let frag_size = handshake.set_downstream_frag_size(user_id, 696).await?;
+        Ok(())
 
-        Ok(Client {
-            version, domain, tun, uid: user_id, uid_char: uid_to_char(user_id), frag_size, compressor: ZlibEncoder::new(Vec::new(), Compression::new(9)),
-            out_pkt: Packet { data: Vec::with_capacity(64*1024), ..Default::default() }, in_pkt: Packet { data: Vec::with_capacity(64*1024), ..Default::default() },
-            encoder: handshake.encoder, dns_client: handshake.dns_client, cmc: handshake.cmc, data_cmc: 0
-        })
+        //Ok(Client {
+        //    version, domain, tun, uid: user_id, uid_char: uid_to_char(user_id), frag_size, compressor: ZlibEncoder::new(Vec::new(), Compression::new(9)),
+        //    out_pkt: Packet { data: Vec::with_capacity(64*1024), ..Default::default() }, in_pkt: Packet { data: Vec::with_capacity(64*1024), ..Default::default() },
+        //    encoder: handshake.encoder, dns_client: handshake.dns_client, cmc: handshake.cmc, data_cmc: 0
+        //})
     }
 }

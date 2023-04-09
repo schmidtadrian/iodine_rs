@@ -1,7 +1,5 @@
 use thiserror::Error;
-
 use crate::util::cmc;
-
 use super::client::ClientHandshake;
 
 
@@ -17,8 +15,8 @@ impl ClientHandshake {
         ].concat();
 
         let url = self.encoder.encode(bytes, 'v', &self.domain);
-        let response = self.dns_client.query_data(url).await?;
-        let data = self.encoder.decode(response)?;
+        let response = self.dns_client.query_data(url)?;
+        let data = self.encoder.decode(std::str::from_utf8(&response)?.to_string())?;
 
         // response data:
         // 4 bytes: Status VACK / VNAK / VFUL
