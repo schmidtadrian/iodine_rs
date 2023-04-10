@@ -2,6 +2,7 @@ use flate2::Compression;
 use flate2::write::ZlibEncoder;
 
 use crate::dns_client::client::DnsClient;
+use crate::downstream;
 use crate::handshake::client::ClientHandshake;
 use crate::encoder::Encoder;
 use crate::tun::create_dev;
@@ -79,7 +80,8 @@ impl Client {
         domain: String,
         nameserver: String,
         port: u16,
-        password: String
+        password: String,
+        downstream: u16
     ) -> anyhow::Result<Client> {
 
         let mut handshake = ClientHandshake::new(version, domain.to_string(), nameserver, port.to_string()).await?;
@@ -88,7 +90,7 @@ impl Client {
         let tun = create_dev("tun0".to_string(), client_ip, netmask, mtu, true);
         handshake.edns_check().await?;
         handshake.set_downstream_encoding(user_id).await?;
-        let frag_size = handshake.set_downstream_frag_size(user_id, 696).await?;
+        let frag_size = handshake.set_downstream_frag_size(user_id, downstream).await?;
 
         // max dns len is 255, minus null terminating byte, minus domain len, minus dot before
         // domain, minus upstream header len, minus buffer for label size

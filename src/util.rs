@@ -1,3 +1,5 @@
+use std::{fs, net::IpAddr};
+
 use crate::constants::{SYMBOLS, DATA_CMC_CHARS};
 
 /// Converts byte into b32 char
@@ -42,4 +44,27 @@ pub fn get_data_cmc_char(n: &mut u8) -> char {
     *n += 1;
     if *n >= 36 { *n = 0 }
     val
+}
+
+
+/// Tries to get nameserver from `/etc/resolv.conf`. On failure returns `8.8.8.8`
+pub fn get_default_nameserver() -> String {
+
+    let mut nameserver = "8.8.8.8".to_string();
+    let resolv = match fs::read_to_string("/etc/resolv.conf") {
+        Ok(file) => file,
+        Err(_err) => return nameserver
+    };
+
+    for line in resolv.lines() {
+        if line.contains("nameserver") {
+            if let Ok(ip) = line.replace("nameserver ", "").parse::<IpAddr>() {
+                nameserver = ip.to_string()
+            }
+            println!("Using nameserver: {}", nameserver);
+            break;
+        }
+    }
+
+    nameserver
 }

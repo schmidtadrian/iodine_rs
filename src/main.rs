@@ -1,7 +1,12 @@
+use crate::util::get_default_nameserver;
 use std::time::{Duration, Instant};
+use clap::Parser;
 use client::Client;
 
+use crate::args::Args;
 
+
+mod args;
 mod constants;
 mod tun;
 mod ping;
@@ -29,30 +34,28 @@ mod dns_client {
 
 #[tokio::main]
 async fn main() {
+    let args = Args::parse();
 
     #[cfg(debug_assertions)]
     println!("Debug mode");
 
     let mut client = match Client::new(
         client::ProtocolVersion::V502,
-        "t2.adrian-s.de".to_string(),
-        //"127.0.0.1".to_string(),
-        //"192.168.178.48".to_string(),
-        //"40.113.151.92".to_string(),
-        //"8.8.8.8".to_string(),
-        "1.1.1.1".to_string(),
-        //"208.67.222.222".to_string(),
-        53,
-        "secretpassword".to_string()).await {
+        args.domain,
+        args.nameserver.unwrap_or_else(get_default_nameserver),
+        args.port,
+        args.password,
+        args.downstream
+    ).await {
             Ok(client) => client,
             Err(err) => return eprintln!("{}", err)
         };
 
 
-    const TIMEOUT: Duration = Duration::from_secs(1);
+    let timeout: Duration = Duration::from_secs(args.interval);
     let mut now: Instant;
 
-    let mut ping_at = Instant::now().checked_add(TIMEOUT).unwrap();
+    let mut ping_at = Instant::now().checked_add(timeout).unwrap();
     let mut unhandled_downstream: Option<Vec<u8>> = None;
 
     loop {
@@ -65,7 +68,7 @@ async fn main() {
                 },
                 Err(err) => eprintln!("PING ERROR: {}", err)
             }
-            ping_at = now.checked_add(TIMEOUT).unwrap();
+            ping_at = now.checked_add(timeout).unwrap();
             continue;
         }
         // read tun
