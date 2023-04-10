@@ -9,7 +9,8 @@ pub fn b32_5to8(val: u8) -> char {
 /// Increments `n` and returns it as a big endian byte array
 pub fn cmc(n: &mut u16) -> [u8; 2] {
     let val = (*n).to_be_bytes().to_owned();
-    *n += 1;
+    // if we reach u16::max start over again
+    *n = n.checked_add(1).unwrap_or(0);
     val
 }
 

@@ -15,24 +15,12 @@ impl Encoder {
         Ok(Encoder { encoding: spec.encoding()? })
     }
 
-    pub fn encode(&self, data: &[u8], cmd: char, domain: &String) -> String {
-        cmd.to_string() + &self.encoding.encode(data) + "." + domain
-    }
-
-    pub fn encode_data(&self, data: &[u8], domain: &String) -> String {
-        self.encoding.encode(data) + "." + domain
-    }
-
-    pub fn decode(&self, data: String) -> Result<Vec<u8>, EncodingError> {
-        Ok(self.encoding.decode(data[1..].as_bytes())?)
-    }
-
-    pub fn decode_to_string(&self, data: String) -> Result<String, EncodingError>{
-        Ok(std::str::from_utf8(&self.decode(data)?)?.to_string())
+    pub fn enc(&self, data: &[u8]) -> String {
+        self.encoding.encode(data)
     }
 
     pub fn decode_byte(&self, data: Vec<u8>) -> Result<Vec<u8>, EncodingError> {
-        Ok(self.encoding.decode(&data[1..])?)
+        Ok(self.encoding.decode(&data[1..]).unwrap())
     }
 
     pub fn decode_byte_to_string(&self, data: Vec<u8>) -> Result<String, EncodingError>{

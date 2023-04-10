@@ -1,8 +1,6 @@
-use std::time::{Duration, SystemTime};
+use std::time::{Duration, Instant};
+use crate::client::Client;
 
-use trust_dns_client::{op::Header, rr::Record};
-
-use crate::{client::Client, dns::DnsError};
 
 pub struct DownstreamHeader {
     pub downstream_seqno: u8,
@@ -23,16 +21,17 @@ impl Client {
         }
     }
 
-    pub async fn handle_downstream(&mut self, header: Header, record: Record, ping_at: &mut SystemTime, ) -> anyhow::Result<Option<()>> {
+    pub async fn handle_downstream(&mut self, data: Vec<u8>, ping_at: &mut Instant, ) -> anyhow::Result<Option<()>> {
 
         // only continue for ping and data messages
-        if !record.name().to_ascii().starts_with(
-            ['p', 'P', self.uid_char, self.uid_char.to_ascii_uppercase()]) { 
-            return Ok(None);
-        }
+        //if !record.name().to_ascii().starts_with(
+        //    ['p', 'P', self.uid_char, self.uid_char.to_ascii_uppercase()]) { 
+        //    return Ok(None);
+        //}
+        if data.is_empty() { return Ok(None); }
 
-        let data = record.data().ok_or(DnsError::NoData)?.to_string();
-        let decoded = self.encoder.decode(data)?;
+        //let data = record.data().ok_or(DnsError::NoData)?.to_string();
+        let decoded = self.encoder.decode_byte(data)?;
 
         // responses < 2 bytes are incorrect!
         // TODO return error
@@ -44,36 +43,37 @@ impl Client {
         // decode the data
         let header = self.parse_header(decoded[..2].try_into()?);
 
-        let _:Option<()> = 'block: {
+        #[allow(clippy::unnecessary_operation)]
+        // clippy wants to remove the labeled block. the block is required to use the break
+        // statement!
+        'block: {
             if decoded.len() > 2 {
                 println!("GOT DATA");
                 // on a new seq no forget the old stuff
                 if header.downstream_seqno != self.in_pkt.seq_no {
-                    //self.in_pkt = Packet { seq_no: header.downstream_seqno, fragment: header.downstream_frag, ..Default::default() }
-                    println!("NEW SEQ NO --> FORGET OLD STUFF");
+                    //println!("NEW SEQ NO --> FORGET OLD STUFF");
                     self.in_pkt.reset_in(header.downstream_seqno, header.downstream_frag)
                 } else if header.downstream_frag <= self.in_pkt.fragment {
-                    println!("Ignoring duplicate frag no");
-                    break 'block None
+                    //println!("Ignoring duplicate frag no");
+                    break 'block
                 } else {
                     self.in_pkt.fragment = header.downstream_frag
                 }
                 self.in_pkt.data.extend_from_slice(&decoded[2..]);
 
                 if header.last_fragment { 
-                    println!("LAST FRAG!");
+                    //println!("LAST FRAG!");
                     self.write_tun().await?
                 }
                 if self.in_pkt.data.is_empty() {
-                    *ping_at = SystemTime::now().checked_add(Duration::from_millis(0)).unwrap();
+                    *ping_at = Instant::now().checked_add(Duration::from_millis(0)).unwrap();
                 } else {
                     #[cfg(debug_assertions)]
                     println!("Server has more to send!");
 
-                    *ping_at = SystemTime::now().checked_add(Duration::from_millis(0)).unwrap();
+                    *ping_at = Instant::now().checked_add(Duration::from_millis(0)).unwrap();
                 }
             }
-            None
         };
 
         if self.is_sending() {

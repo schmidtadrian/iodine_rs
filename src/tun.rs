@@ -22,7 +22,8 @@ pub fn create_dev(name: String, ip: IpAddr, netmask: u32, mtu: i32, pkt_info: bo
     config.name(&name)
         .address(ip)
         .netmask((mask[0], mask[1], mask[2], mask[3]))
-        .mtu(mtu.min(MAX_MTU))
+        //.mtu(mtu.min(MAX_MTU))
+        .mtu(mtu)
         .up();
     
     #[cfg(target_os = "linux")]
@@ -56,19 +57,19 @@ impl crate::client::Client {
             println!("Not reading from tun bc sending");
             return Ok(None)
         }
-        println!("Reading from tun");
+        //println!("Reading from tun");
         let mut in_buf = [0; 2*1024];
 
         // early exit if we are currently sending data or read 0 bytes
         // read blocks if tun is empty
-        let in_size = match timeout(Duration::from_secs(1), self.tun.read(&mut in_buf)).await {
+        let in_size = match timeout(Duration::from_millis(100), self.tun.read(&mut in_buf)).await {
             Ok(Ok(size)) => size,
             Ok(Err(err)) => {
                 eprintln!("{}", err);
                 return Err(err.into());
             },
             Err(err) => {
-                eprintln!("{}", err);
+                //eprintln!("{}", err);
                 return Err(err.into());
             },
         };

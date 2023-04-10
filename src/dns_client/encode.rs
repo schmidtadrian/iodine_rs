@@ -1,52 +1,6 @@
 use bytes::{Bytes, BytesMut, BufMut};
-use super::constants::{DNS_HDR_SIZE, PERIODE, EDNS_EXT_SIZE, EDNS_EXT};
 
-
-pub fn create_query(id: u16, url: String, edns: bool) -> Bytes {
-    
-    let qname = url_to_qname(url);
-    // body size is qname len + 2 byte qtype + 2 byte qclass
-    let mut query_size = DNS_HDR_SIZE + qname.len() + 4;
-    let mut ar = 0;
-
-    if edns {
-        query_size += EDNS_EXT_SIZE;
-        ar = 1;
-    }
-    let mut bytes = BytesMut::with_capacity(query_size);
-
-    /*
-     * DNS HEADER 
-     * ID       <ID>
-     * QR       0
-     * OPCODE   0000
-     * AA       0
-     * TC       0
-     * RD       1
-     * RA       0
-     * Z        000
-     * RCODE    0000
-     * QDCOUNT  0000_0001
-     * ANCOUNT  0000_0000
-     * NSCOUNT  0000_0000
-     * ARCOUNT  0 or 1
-     */
-    bytes.put_u16(id);
-    bytes.put_u8(1);
-    bytes.put_u8(0);
-    bytes.put_u16(1);
-    bytes.put_u16(0);
-    bytes.put_u16(0);
-    bytes.put_u16(ar);
-
-    // dns body
-    bytes.put_slice(&qname);
-    bytes.put_u16(16);   // QTYPE  TXT
-    bytes.put_u16(1);    // QCLASS IN
-    if edns { bytes.put_slice(EDNS_EXT) }
-
-    bytes.freeze()
-}
+use super::{constants::{DNS_HDR_SIZE, PERIODE, EDNS_EXT_SIZE, EDNS_EXT}, client::DnsClient};
 
 
 /// replaces periodes with the size of the following label
@@ -76,3 +30,68 @@ pub fn url_to_qname(url: String) -> Vec<u8> {
     data
 }
 
+
+impl DnsClient {
+
+    /// takes data, encodes it into 56 byte dns labels &
+    /// appends the domain afterwards
+    /// No max. len validation!
+    pub fn data_to_qname(&self, d: String) -> Vec<u8> {
+        let mut data: Vec<u8> = Vec::with_capacity(255);
+        for chunk in d.as_bytes().chunks(56) {
+            data.push(chunk.len() as u8);
+            data.extend_from_slice(chunk)
+        }
+        
+        data.extend_from_slice(&self.qname_suffix);
+        data
+    }
+
+
+    pub fn create_query(&self, id: u16, url: String, edns: bool) -> Bytes {
+        
+        let qname = self.data_to_qname(url);
+        // body size is qname len + 2 byte qtype + 2 byte qclass
+        let mut query_size = DNS_HDR_SIZE + qname.len() + 4;
+        let mut ar = 0;
+    
+        if edns {
+            query_size += EDNS_EXT_SIZE;
+            ar = 1;
+        }
+        let mut bytes = BytesMut::with_capacity(query_size);
+    
+        /*
+         * DNS HEADER 
+         * ID       <ID>
+         * QR       0
+         * OPCODE   0000
+         * AA       0
+         * TC       0
+         * RD       1
+         * RA       0
+         * Z        000
+         * RCODE    0000
+         * QDCOUNT  0000_0001
+         * ANCOUNT  0000_0000
+         * NSCOUNT  0000_0000
+         * ARCOUNT  0 or 1
+         */
+        bytes.put_u16(id);
+        bytes.put_u8(1);
+        bytes.put_u8(0);
+        bytes.put_u16(1);
+        bytes.put_u16(0);
+        bytes.put_u16(0);
+        bytes.put_u16(ar);
+    
+        // dns body
+        bytes.put_slice(&qname);
+        bytes.put_u16(16);   // QTYPE  TXT
+        bytes.put_u16(1);    // QCLASS IN
+        if edns { bytes.put_slice(EDNS_EXT) }
+    
+        bytes.freeze()
+    }
+
+}

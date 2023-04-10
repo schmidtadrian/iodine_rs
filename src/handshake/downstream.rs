@@ -18,7 +18,7 @@ impl ClientHandshake {
             &cmc(&mut self.cmc)
         ].concat();
 
-        let url = self.encoder.encode(&bytes, 'n', &self.domain);
+        let url = "n".to_string() + &self.encoder.enc(&bytes);
         let response = self.dns_client.query_data(url)?;
         let data = self.encoder.decode_byte(response)?;
 
@@ -37,7 +37,7 @@ impl ClientHandshake {
         // 1 char  variant
         // 1 char  base32 encoded user id
         // 3 chars base32 encoded
-        let url = format!("o{}t{}.{}", b32_5to8(uid), cmc_b32_5to8(&mut self.cmc), &self.domain);
+        let url = format!("o{}t{}", b32_5to8(uid), cmc_b32_5to8(&mut self.cmc));
         let response = self.dns_client.query_data(url)?;
         let data = self.encoder.decode_byte_to_string(response)?;
 

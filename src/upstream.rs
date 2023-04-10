@@ -1,21 +1,7 @@
-use trust_dns_client::{rr::Record, op::Header};
+use crate::{client::Client, util::{b32_5to8, get_data_cmc_char}};
 
-use crate::{client::Client, util::{b32_5to8, get_data_cmc_char}, constants::MAX_URL_RAW_DATA_SIZE};
 
 impl Client {
-
-    pub fn build_hostname(&self, data: &[u8], max_len: usize) -> (String, u32) {
-        //let avail_space: usize = usize::min(max_len, 4096) - domain.len() - 8;
-
-        let data_len = usize::min(max_len, data.len());
-        //#[cfg(debug_assertions)]
-        //println!("Sending {} bytes from out_pkt.data, {} bytes left", data_len, data.len()-data_len);
-
-        (
-            self.encoder.encode_data(data[..data_len].into(), &self.domain),
-            data_len as u32
-        )
-    }
 
     fn build_header(&mut self) -> String {
 
@@ -46,16 +32,20 @@ impl Client {
         header.iter().collect()
     }
 
-    pub async fn upstream(&mut self) -> anyhow::Result<Option<(Header, Record)>>{
+    pub async fn upstream(&mut self) -> anyhow::Result<Option<Vec<u8>>>{
 
         let data_len = self.out_pkt.data.len() as u32;
         // all data published
         if data_len == 0 || self.out_pkt.offset >= data_len {
             return Ok(None)
         }
-        let (data, len) = self.build_hostname(&self.out_pkt.data[self.out_pkt.offset as usize..], MAX_URL_RAW_DATA_SIZE);
-        self.out_pkt.sent_len = len;
-        
+
+        // calc how move raw data we can encode in query
+        let start = self.out_pkt.offset as usize;
+        let end = self.out_pkt.data.len().min(self.url_max_raw_bytes + start);
+        let data = self.encoder.enc(&self.out_pkt.data[start..end]);
+
+        self.out_pkt.sent_len = (end-start) as u32;
         let header = self.build_header();
 
         #[cfg(debug_assertions)] {
@@ -67,11 +57,11 @@ impl Client {
                 self.in_pkt.seq_no, self.in_pkt.fragment,
                 self.out_pkt.seq_no, self.out_pkt.fragment,
                 lf,
-                self.out_pkt.sent_len, self.out_pkt.data.len() - self.out_pkt.offset as usize - self.out_pkt.sent_len as usize
+                self.out_pkt.sent_len,
+                self.out_pkt.data.len() - self.out_pkt.offset as usize - self.out_pkt.sent_len as usize
             );
-            //println!("{}{}", header, &data);
         }
 
-        Ok(Some(self.dns_client.query_record(header + &data).await?))
+        Ok(Some(self.dns_client.query_data(header + &data)?))
     }
 }

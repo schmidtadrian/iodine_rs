@@ -14,9 +14,9 @@ impl ClientHandshake {
             &cmc(&mut self.cmc)
         ].concat();
 
-        let url = self.encoder.encode(bytes, 'v', &self.domain);
+        let url = "v".to_string() + &self.encoder.enc(bytes);
         let response = self.dns_client.query_data(url)?;
-        let data = self.encoder.decode(std::str::from_utf8(&response)?.to_string())?;
+        let data = self.encoder.decode_byte(response)?;
 
         // response data:
         // 4 bytes: Status VACK / VNAK / VFUL

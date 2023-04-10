@@ -50,7 +50,7 @@ impl ClientHandshake {
             &cmc(&mut self.cmc)
         ].concat();
 
-        let url = self.encoder.encode(bytes, 'l', &self.domain);
+        let url = "l".to_string() + &self.encoder.enc(bytes);
         let response = self.dns_client.query_data(url)?;
         let data = self.encoder.decode_byte_to_string(response)?;
 

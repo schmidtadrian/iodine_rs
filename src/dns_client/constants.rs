@@ -9,7 +9,7 @@ pub const DNS_RESPONSE_FLAGS: &[u8] = &[0x84, 0x00];
 // 2 byte CLASS
 // 4 byte TTL
 // 2 byte RDLENGTH
-pub const DNS_ANSWER_RDATA_INDEX: usize = 13;
+pub const DNS_ANSWER_RLENGTH_INDEX: usize = 11;
 
 pub const EDNS_EXT: &[u8] = &[
     0x00,           // NAME

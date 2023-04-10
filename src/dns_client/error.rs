@@ -12,5 +12,11 @@ pub enum DnsError {
     #[error("Received malformed response")]
     Malformed,
     #[error("Timeout! No response received")]
-    Timeout
+    Timeout,
+    #[error("Received packet is no response")]
+    NoResponse,
+    #[error("Server sent error response")]
+    ErrorResponse,
+    #[error("Response has no query answer")]
+    NoAnswer
 }
