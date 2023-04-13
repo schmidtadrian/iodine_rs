@@ -27,7 +27,7 @@ pub struct Packet {
 
 impl Packet {
     pub fn inc_seq_no(&mut self) -> u8 {
-        self.seq_no = (self.seq_no+1) & 7;
+        self.seq_no = (self.seq_no+1) & 0b111;
         self.seq_no
     }
 
@@ -76,7 +76,7 @@ pub struct Client {
 
 
 impl Client {
-    pub async  fn new(
+    pub async  fn handshake(
         version: ProtocolVersion,
         domain: String,
         nameserver: IpAddr,
