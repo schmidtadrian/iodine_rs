@@ -44,7 +44,8 @@ async fn main() {
         args.nameserver.unwrap_or_else(get_default_nameserver),
         args.port,
         args.password,
-        args.downstream
+        args.downstream,
+        args.interface
     ).await {
             Ok(client) => client,
             Err(err) => return eprintln!("{}", err)

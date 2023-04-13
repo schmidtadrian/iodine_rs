@@ -1,4 +1,4 @@
-use std::{fs, net::IpAddr};
+use std::{fs, net::{IpAddr, Ipv4Addr}};
 
 use crate::constants::{SYMBOLS, DATA_CMC_CHARS};
 

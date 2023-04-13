@@ -81,13 +81,14 @@ impl Client {
         nameserver: IpAddr,
         port: u16,
         password: String,
-        downstream: u16
+        downstream: u16,
+        interface_name: String
     ) -> anyhow::Result<Client> {
 
         let mut handshake = ClientHandshake::new(version, domain.to_string(), SocketAddr::new(nameserver, port)).await?;
         let (challenge, user_id) = handshake.version_handshake().await?;
         let (server_ip, client_ip, mtu, netmask) = handshake.login_handshake(password, challenge, user_id).await?;
-        let tun = create_dev("tun0".to_string(), client_ip, netmask, mtu, true);
+        let tun = create_dev(interface_name, client_ip, netmask, mtu, true);
         handshake.edns_check().await?;
         handshake.set_downstream_encoding(user_id).await?;
         let frag_size = handshake.set_downstream_frag_size(user_id, downstream).await?;

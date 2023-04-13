@@ -27,4 +27,8 @@ pub struct Args {
     /// Server port
     #[arg(short = 'P', long, default_value_t = 53)]
     pub port: u16,
+
+    /// Tunnel interface name
+    #[arg(short = 'n', long = "name", default_value = "dns0")]
+    pub interface: String
 }
