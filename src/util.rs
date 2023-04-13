@@ -19,9 +19,9 @@ pub fn cmc(n: &mut u16) -> [u8; 2] {
 /// Converts cmc (2 byte) into 3 base32 chars
 pub fn cmc_b32_5to8(n: &mut u16) -> String {
     let val = [
-        b32_5to8(((*n >> 10) & 31) as u8),
-        b32_5to8(((*n >> 5) & 31) as u8),
-        b32_5to8((*n & 31) as u8)
+        b32_5to8(((*n >> 10) & 0b1_1111) as u8),
+        b32_5to8(((*n >> 5) & 0b1_1111) as u8),
+        b32_5to8((*n & 0b1_1111) as u8)
     ];
     *n += 1;
     val.iter().collect()
@@ -60,9 +60,9 @@ pub fn get_default_nameserver() -> IpAddr {
         if line.contains("nameserver") {
             if let Ok(ip) = line.replace("nameserver ", "").parse::<IpAddr>() {
                 nameserver = ip;
-            break;
+                break;
+            }
         }
-    }
     }
     println!("Using nameserver: {}", nameserver);
 

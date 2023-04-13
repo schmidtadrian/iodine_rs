@@ -15,7 +15,7 @@ impl crate::client::Client {
         let cmc = cmc(&mut self.cmc);
         let bytes: &[u8; 4] = &[
             self.uid,
-            ((self.in_pkt.seq_no & 7) << 4) | (self.in_pkt.fragment & 15),
+            ((self.in_pkt.seq_no & 0b111) << 4) | (self.in_pkt.fragment & 0b1111),
             cmc[0], cmc[1]
         ];
 

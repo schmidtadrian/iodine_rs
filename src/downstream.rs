@@ -13,10 +13,10 @@ pub struct DownstreamHeader {
 impl Client {
     fn parse_header(&self, data: [u8; 2]) -> DownstreamHeader {
         DownstreamHeader {
-            downstream_seqno: (data[1] >> 5) & 7,
-            downstream_frag: (data[1] >> 1) & 15,
-            upstream_ack_seqno: (data[0] >> 4) & 7,
-            upstream_ack_frag: data[0] & 15,
+            downstream_seqno: (data[1] >> 5) & 0b111,
+            downstream_frag: (data[1] >> 1) & 0b1111,
+            upstream_ack_seqno: (data[0] >> 4) & 0b111,
+            upstream_ack_frag: data[0] & 0b1111,
             last_fragment: (data[1] & 1) != 0
         }
     }
