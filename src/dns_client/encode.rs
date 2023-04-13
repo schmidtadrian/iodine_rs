@@ -38,7 +38,7 @@ impl DnsClient {
     /// No max. len validation!
     pub fn data_to_qname(&self, d: String) -> Vec<u8> {
         let mut data: Vec<u8> = Vec::with_capacity(255);
-        for chunk in d.as_bytes().chunks(56) {
+        for chunk in d.as_bytes().chunks(63) {
             data.push(chunk.len() as u8);
             data.extend_from_slice(chunk)
         }

@@ -1,4 +1,4 @@
-use super::{constants::{DNS_RESPONSE_FLAGS, DNS_HDR_SIZE, DNS_ANSWER_RLENGTH_INDEX}, error::DnsError};
+use super::{constants::{DNS_HDR_SIZE, DNS_ANSWER_RLENGTH_INDEX}, error::DnsError};
 
 
 /// extracts data field from response

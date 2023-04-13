@@ -1,7 +1,6 @@
 pub const DNS_HDR_SIZE: usize = 12;
 pub const EDNS_EXT_SIZE: usize = 11;
 pub const PERIODE: u8 = 0x2E;
-pub const DNS_RESPONSE_FLAGS: &[u8] = &[0x84, 0x00];
 
 // iodine dns answer name is always a pointer.
 // 2 byte NAME pointer

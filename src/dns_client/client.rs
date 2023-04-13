@@ -40,24 +40,18 @@ impl DnsClient {
             self.socket.send(bytes).map_err(|_| DnsError::Disconnected)?;
 
             for j in 0..3 {
-                let (len, addr) = match self.socket.recv_from(&mut buffer) {
-                    Ok(tuple) => tuple,
-                    Err(_) => {
-                        println!("No data received (try: {})", j);
-                        continue;
+                if let Ok((len, addr)) = self.socket.recv_from(&mut  buffer) {
+                    if addr == self.socket.peer_addr().map_err(|_| DnsError::Disconnected)? {
+                        return Ok(buffer[..len].to_vec())
                     }
-                };
-                return Ok(buffer[..len].to_vec())
+                    continue
+                }
+                println!("No data received (try: {})", j);
             }
+
             println!("Resending data (try: {})", i);
         }
         Err(DnsError::Timeout)
-        //let (len, addr) = self.socket.recv_from(&mut buffer).map_err(|_| DnsError::Receive)?;
-
-        //match addr == self.socket.peer_addr().map_err(|_| DnsError::Disconnected)? {
-        //    true => Ok(buffer[..len].to_vec()),
-        //    false => Err(DnsError::Timeout)
-        //}
     }
 
     pub fn query_data(&mut self, url: String) -> Result<Vec<u8>, DnsError>{

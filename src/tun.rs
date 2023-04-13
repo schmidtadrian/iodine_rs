@@ -11,18 +11,16 @@ use flate2::write::ZlibEncoder;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::time::timeout;
 
-use crate::constants::MAX_MTU;
 
 /// Creates TUN dev.
 /// Panicks on invalid parameters or insufficient privileges
 pub fn create_dev(name: String, ip: IpAddr, netmask: u32, mtu: i32, pkt_info: bool) -> tun::AsyncDevice {
     // cidr netmask to byte array
-    let mask: [u8; 4] = (u32::MAX << netmask).to_be_bytes();
+    let mask: [u8; 4] = (u32::MAX << netmask).to_ne_bytes();
     let mut config = tun::Configuration::default();
     config.name(&name)
         .address(ip)
-        .netmask((mask[0], mask[1], mask[2], mask[3]))
-        //.mtu(mtu.min(MAX_MTU))
+        .netmask((mask[3], mask[2], mask[1], mask[0]))
         .mtu(mtu)
         .up();
     
@@ -62,7 +60,7 @@ impl crate::client::Client {
 
         // early exit if we are currently sending data or read 0 bytes
         // read blocks if tun is empty
-        let in_size = match timeout(Duration::from_millis(100), self.tun.read(&mut in_buf)).await {
+        let in_size = match timeout(Duration::from_millis(50), self.tun.read(&mut in_buf)).await {
             Ok(Ok(size)) => size,
             Ok(Err(err)) => {
                 eprintln!("{}", err);

@@ -7,8 +7,6 @@ pub enum DnsError {
     Socket(String),
     #[error("Couldn't send query, because there is no server connection")]
     Disconnected,
-    #[error("Couldn't receive data")]
-    Receive,
     #[error("Received malformed response")]
     Malformed,
     #[error("Timeout! No response received")]
