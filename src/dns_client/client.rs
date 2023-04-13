@@ -12,14 +12,18 @@ pub struct DnsClient {
 }
 
 impl DnsClient {
-    pub fn new<T: ToSocketAddrs>(client_addr: T, server_addr: T, domain: String) -> Result<Self, DnsError> {
+    pub fn new<C, S>(client_addr: C, server_addr: S, domain: String, read_timeout: u64) -> Result<Self, DnsError>
+    where
+        C: ToSocketAddrs,
+        S: ToSocketAddrs
+    {
         let socket = UdpSocket::bind(client_addr)
             .map_err(|_| DnsError::Socket("Couldn't bind to socket".to_string()))?;
         socket.connect(server_addr)
             .map_err(|_| DnsError::Socket("Couldn't connect to server".to_string()))?;
 
-        if let Err(err) = socket.set_read_timeout(Some(Duration::from_millis(250))) {
-            println!("Couldn't set socket read timeout!");
+        if let Err(err) = socket.set_read_timeout(Some(Duration::from_millis(read_timeout))) {
+            eprintln!("Couldn't set socket read timeout. {}", err);
         }
 
         Ok(DnsClient {

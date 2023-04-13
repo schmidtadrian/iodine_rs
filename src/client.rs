@@ -78,13 +78,13 @@ impl Client {
     pub async  fn new(
         version: ProtocolVersion,
         domain: String,
-        nameserver: String,
+        nameserver: IpAddr,
         port: u16,
         password: String,
         downstream: u16
     ) -> anyhow::Result<Client> {
 
-        let mut handshake = ClientHandshake::new(version, domain.to_string(), nameserver, port.to_string()).await?;
+        let mut handshake = ClientHandshake::new(version, domain.to_string(), SocketAddr::new(nameserver, port)).await?;
         let (challenge, user_id) = handshake.version_handshake().await?;
         let (server_ip, client_ip, mtu, netmask) = handshake.login_handshake(password, challenge, user_id).await?;
         let tun = create_dev("tun0".to_string(), client_ip, netmask, mtu, true);

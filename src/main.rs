@@ -1,9 +1,8 @@
-use crate::util::get_default_nameserver;
-use std::time::{Duration, Instant};
 use clap::Parser;
 use client::Client;
 
 use crate::args::Args;
+use crate::util::get_default_nameserver;
 
 
 mod args;

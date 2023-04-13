@@ -1,4 +1,6 @@
-use crate::{encoder::Encoder, client::ProtocolVersion, constants::SYMBOLS, dns_client::client::DnsClient};
+use std::net::ToSocketAddrs;
+
+use crate::{encoder::Encoder, client::ProtocolVersion, dns_client::client::DnsClient};
 
 
 pub struct ClientHandshake {
@@ -11,9 +13,9 @@ pub struct ClientHandshake {
 
 
 impl ClientHandshake {
-    pub async fn new(version: ProtocolVersion, domain: String, nameserver: String, port: String) -> anyhow::Result<Self> {
+    pub async fn new<S: ToSocketAddrs>(version: ProtocolVersion, domain: String, nameserver: S) -> anyhow::Result<Self> {
         Ok(ClientHandshake {
-            dns_client: DnsClient::new("0.0.0.0:8000", &(nameserver + ":" + &port), domain.to_owned())?,
+            dns_client: DnsClient::new("0.0.0.0:8000", nameserver, domain.to_owned(), 250)?,
             encoder: Encoder::new(SYMBOLS)?,
             cmc: rand::random(),
             version,

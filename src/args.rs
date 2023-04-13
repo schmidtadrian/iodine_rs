@@ -1,3 +1,5 @@
+use std::net::IpAddr;
+
 use clap::Parser;
 
 #[derive(Parser, Debug)]
@@ -8,7 +10,7 @@ pub struct Args {
     pub domain: String,
 
     /// IP of the relaying nameserver. If absent /etc/resolv.conf is used
-    pub nameserver: Option<String>,
+    pub nameserver: Option<IpAddr>,
 
     /// Password
     #[arg(short, long)]

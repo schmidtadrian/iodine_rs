@@ -48,9 +48,9 @@ pub fn get_data_cmc_char(n: &mut u8) -> char {
 
 
 /// Tries to get nameserver from `/etc/resolv.conf`. On failure returns `8.8.8.8`
-pub fn get_default_nameserver() -> String {
+pub fn get_default_nameserver() -> IpAddr {
 
-    let mut nameserver = "8.8.8.8".to_string();
+    let mut nameserver = IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8));
     let resolv = match fs::read_to_string("/etc/resolv.conf") {
         Ok(file) => file,
         Err(_err) => return nameserver
@@ -59,12 +59,12 @@ pub fn get_default_nameserver() -> String {
     for line in resolv.lines() {
         if line.contains("nameserver") {
             if let Ok(ip) = line.replace("nameserver ", "").parse::<IpAddr>() {
-                nameserver = ip.to_string()
-            }
-            println!("Using nameserver: {}", nameserver);
+                nameserver = ip;
             break;
         }
     }
+    }
+    println!("Using nameserver: {}", nameserver);
 
     nameserver
 }
