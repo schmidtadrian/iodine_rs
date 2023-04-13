@@ -3,7 +3,11 @@ use crate::{handshake::{client::ClientHandshake, constants::DOWN_CODEC_CHECK}, u
 impl ClientHandshake {
     pub async fn edns_check(&mut self) -> anyhow::Result<()>{
         self.dns_client.use_edns = false;
-        let url = format!("yt{}{}", b32_5to8(1), cmc_b32_5to8(&mut self.cmc));
+        let url = format!("y{}{}{}",
+            self.encoder.up_enc_info.url_char,
+            b32_5to8(1),
+            cmc_b32_5to8(&mut self.cmc)
+        );
         let response = self.dns_client.query_data(url)?;
         let data = self.encoder.decode_byte(response)?;
 

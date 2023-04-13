@@ -22,8 +22,7 @@ impl crate::client::Client {
         #[cfg(debug_assertions)]
         println!("PING: {}/{}", self.in_pkt.seq_no, self.in_pkt.fragment);
 
-        //let url = self.encoder.encode(bytes, 'p', &self.domain);
-        let url = "p".to_string() + &self.encoder.enc(bytes);
+        let url = "p".to_string() + &self.encoder.encode_default(bytes);
         self.dns_client.query_data(url)
     }
 

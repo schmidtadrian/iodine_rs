@@ -16,7 +16,7 @@ impl ClientHandshake {
     pub async fn new<S: ToSocketAddrs>(version: ProtocolVersion, domain: String, nameserver: S) -> anyhow::Result<Self> {
         Ok(ClientHandshake {
             dns_client: DnsClient::new("0.0.0.0:8000", nameserver, domain.to_owned(), 250)?,
-            encoder: Encoder::new(SYMBOLS)?,
+            encoder: Encoder::new(Default::default())?,
             cmc: rand::random(),
             version,
             domain

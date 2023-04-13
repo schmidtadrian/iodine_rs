@@ -14,7 +14,7 @@ impl ClientHandshake {
             &cmc(&mut self.cmc)
         ].concat();
 
-        let url = "v".to_string() + &self.encoder.enc(bytes);
+        let url = "v".to_string() + &self.encoder.encode_default(bytes);
         let response = self.dns_client.query_data(url)?;
         let data = self.encoder.decode_byte(response)?;
 
@@ -24,6 +24,11 @@ impl ClientHandshake {
         //              VNAK -> server protocol version
         //              VFUL -> max users
         // 1 byte    8: if VACK user id
+
+        if data.len() < 9 {
+            return Err(VersionError::UnexpectedResponse.into())
+        }
+
         match std::str::from_utf8(&data[..4])? {
             "VACK" => {
                 let uid = data[8];
@@ -32,7 +37,7 @@ impl ClientHandshake {
             },
             "VNAK" => Err(VersionError::VersionDiff.into()),
             "VFUL" => Err(VersionError::NoSlots.into()),
-            _ => Err(VersionError::Unknown.into())
+            _ => Err(VersionError::UnexpectedResponse.into())
         }
     }
 }
@@ -45,6 +50,4 @@ pub enum VersionError {
     NoSlots,
     #[error("Can't handle server response!")]
     UnexpectedResponse,
-    #[error("Unknown error")]
-    Unknown
 }

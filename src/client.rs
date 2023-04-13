@@ -1,11 +1,11 @@
 use std::net::{IpAddr, SocketAddr};
 use flate2::Compression;
 use flate2::write::ZlibEncoder;
+use strum::IntoEnumIterator;
 
 use crate::dns_client::client::DnsClient;
-use crate::downstream;
 use crate::handshake::client::ClientHandshake;
-use crate::encoder::Encoder;
+use crate::encoder::{Encoder, Codecs};
 use crate::tun::create_dev;
 use crate::util::uid_to_char;
 
@@ -88,22 +88,28 @@ impl Client {
 
         let mut handshake = ClientHandshake::new(version, domain.to_string(), SocketAddr::new(nameserver, port)).await?;
         let (challenge, user_id) = handshake.version_handshake().await?;
+        let uid_char = uid_to_char(user_id);
         let (server_ip, client_ip, mtu, netmask) = handshake.login_handshake(password, challenge, user_id).await?;
         let tun = create_dev(interface_name, client_ip, netmask, mtu, true);
         handshake.edns_check().await?;
-        handshake.set_downstream_encoding(user_id).await?;
+
+        handshake.upstream_encoding_handshake(Codecs::iter().collect(), &user_id).await?;
+        handshake.downstream_encoding_handshake(Codecs::iter().collect(), &user_id).await?;
         let frag_size = handshake.set_downstream_frag_size(user_id, downstream).await?;
 
         // max dns len is 255, minus null terminating byte, minus domain len, minus dot before
         // domain, minus upstream header len, minus buffer for label size
-        let url_max_raw_bytes = ((254-domain.len()-1-5-4) as f32 *0.625).floor() as usize;
+        let url_max_raw_bytes = (
+            (254-domain.len()-1-5-4) as f32 / handshake.encoder.up_enc_info.factor()
+        ).floor() as usize;
+        //let url_max_raw_bytes = ((254-domain.len()-1-5-4) as f32 *0.625).floor() as usize;
 
         Ok(Client {
             version,
             domain,
             tun,
             uid: user_id,
-            uid_char: uid_to_char(user_id),
+            uid_char,
             frag_size,
             compressor: ZlibEncoder::new(Vec::new(), Compression::new(9)),
             out_pkt: Packet { data: Vec::with_capacity(64*1024), ..Default::default() },

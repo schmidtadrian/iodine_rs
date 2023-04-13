@@ -50,7 +50,7 @@ impl ClientHandshake {
             &cmc(&mut self.cmc)
         ].concat();
 
-        let url = "l".to_string() + &self.encoder.enc(bytes);
+        let url = "l".to_string() + &self.encoder.encode_default(bytes);
         let response = self.dns_client.query_data(url)?;
         let data = self.encoder.decode_byte_to_string(response)?;
 
@@ -58,7 +58,7 @@ impl ClientHandshake {
         match data {
             s if s.contains("LNAK") => return Err(LoginError::Unauthorized.into()),
             s if s.contains("BADIP") => return Err(LoginError::Uid.into()),
-            s if s.is_empty() => return Err(LoginError::Unknown.into()),
+            s if s.is_empty() => return Err(LoginError::UnexpectedResponse.into()),
             _ => println!("Login successful!")
         }
 
@@ -84,6 +84,4 @@ pub enum LoginError {
     Uid,
     #[error("Can't handle server response")]
     UnexpectedResponse,
-    #[error("Unknown error")]
-    Unknown
 }

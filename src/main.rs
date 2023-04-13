@@ -21,6 +21,7 @@ mod handshake {
     pub mod login;
     pub mod edns;
     pub mod downstream;
+    pub mod upstream;
     pub mod constants;
 }
 mod dns_client {
@@ -51,7 +52,7 @@ async fn main() {
     ).await {
             Ok(client) => client,
             Err(err) => return eprintln!("{}", err)
-        };
+    };
 
     client.run(args.interval).await;
 
