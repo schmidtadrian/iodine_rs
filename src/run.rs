@@ -24,9 +24,6 @@ impl Client {
                 continue;
             }
 
-            // read tun
-            // None --> did not read & dont send upstream data
-            // Some --> compressed data from tun into client.out_pkt.data
             if unhandled_downstream.is_none() {
                 if let Err(_err) =  self.read_tun().await {
                     //eprintln!("{}", err);
@@ -46,7 +43,6 @@ impl Client {
 
 
             if let Some(data) = unhandled_downstream {
-                //println!("handle downstream");
                 match self.handle_downstream(data, &mut ping_at).await {
                     Ok(opt) => match opt {
                         Some(_) => {},
@@ -57,5 +53,5 @@ impl Client {
                 unhandled_downstream = None;
             }
         }
-        }
+    }
 }

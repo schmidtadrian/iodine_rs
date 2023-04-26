@@ -89,7 +89,7 @@ impl Client {
         let mut handshake = ClientHandshake::new(version, domain.to_string(), SocketAddr::new(nameserver, port)).await?;
         let (challenge, user_id) = handshake.version_handshake().await?;
         let uid_char = uid_to_char(user_id);
-        let (server_ip, client_ip, mtu, netmask) = handshake.login_handshake(password, challenge, user_id).await?;
+        let (_server_ip, client_ip, mtu, netmask) = handshake.login_handshake(password, challenge, user_id).await?;
         let tun = create_dev(interface_name, client_ip, netmask, mtu, true);
         handshake.edns_check().await?;
 
@@ -102,7 +102,6 @@ impl Client {
         let url_max_raw_bytes = (
             (254-domain.len()-1-5-4) as f32 / handshake.encoder.up_enc_info.factor()
         ).floor() as usize;
-        //let url_max_raw_bytes = ((254-domain.len()-1-5-4) as f32 *0.625).floor() as usize;
 
         Ok(Client {
             version,

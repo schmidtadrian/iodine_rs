@@ -4,6 +4,7 @@ use data_encoding::{Specification, Encoding, SpecificationError, DecodeError};
 use strum::{Display, EnumIter};
 use thiserror::Error;
 
+
 #[derive(Debug, Clone)]
 pub struct EncodingInfo {
     pub symbols: String,
@@ -12,12 +13,16 @@ pub struct EncodingInfo {
     pub url_char: char
 }
 
+
 impl Default for EncodingInfo {
     fn default() -> Self {
         EncodingInfo::new(Codecs::default())
     }
 }
+
+
 impl EncodingInfo {
+
     pub fn new(encoding: Codecs) -> Self {
         let (symbols, raw_len, enc_len, url_char) = encoding.get_encoding_info();
         EncodingInfo { symbols, raw_len, enc_len, url_char }
@@ -30,16 +35,21 @@ impl EncodingInfo {
 
 }
 
+
 #[derive(Display, EnumIter, Debug, PartialEq)]
 pub enum Codecs {
     Base64,
     Base32,
 }
 
+
 impl Default for Codecs {
     fn default() -> Self { Self::Base32 }
 }
+
+
 impl Codecs {
+
     pub fn get_test_pattern(&self) -> &str {
         match self {
             Self::Base32 => "",
@@ -55,6 +65,7 @@ impl Codecs {
     }
 }
 
+
 pub struct Encoder {
     pub base_encoding: Encoding,
     pub up_enc: Encoding,
@@ -69,6 +80,7 @@ pub fn create_encoding(symbols: &str) -> Result<Encoding, EncodingError> {
     spec.symbols.push_str(symbols);
     Ok(spec.encoding()?)
 }
+
 
 impl Encoder {
 
@@ -113,6 +125,7 @@ impl Encoder {
         Ok(std::str::from_utf8(&self.decode_byte(data)?)?.to_string())
     }
 }
+
 
 #[derive(Error, Debug)]
 pub enum EncodingError {

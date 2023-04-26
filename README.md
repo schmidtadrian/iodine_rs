@@ -3,6 +3,8 @@ Rust implementation of the [iodine client](https://github.com/yarrick/iodine), t
 
 ## Prerequisites
 - Rust
+- C compiler
+- cmake
 
 ## Quickstart
 Start the iodine server similar like:
@@ -33,6 +35,7 @@ Nearly all DNS server have some kind of mechanism to block spam or dns tunneling
 We tested with the following Intermediates:
 - google (works best!)
 - cloudflare (high latency)
+- eduroam (doesn't work)
 
 ### Further work
 - Support more encodings

@@ -55,7 +55,6 @@ impl crate::client::Client {
             println!("Not reading from tun bc sending");
             return Ok(None)
         }
-        //println!("Reading from tun");
         let mut in_buf = [0; 2*1024];
 
         // early exit if we are currently sending data or read 0 bytes
@@ -67,19 +66,13 @@ impl crate::client::Client {
                 return Err(err.into());
             },
             Err(err) => {
-                //eprintln!("{}", err);
                 return Err(err.into());
             },
         };
 
         if in_size == 0 {
-            println!("Tun is empty");
             return Ok(None)
         }
-
-        //if self.is_sending() || self.tun.read(&mut in_buf)? == 0 {
-        //    return Ok(None)
-        //}
 
         // compress 
         // for small buffers the encoded data is bigger than before
@@ -90,18 +83,17 @@ impl crate::client::Client {
 
         self.out_pkt.reset_out(&out_buf);
 
-        #[cfg(debug_assertions)] {
-            println!("Written {}/{} bytes to upstream data (raw/enc)", in_size, self.out_pkt.data.len());
-            //println!("R({}): {:?}", in_len, &in_buf[..in_size]);
-            //println!("E({}): {:?}", out_buf.len(), &out_buf);
-        }
+        #[cfg(debug_assertions)]
+        println!("Written {}/{} bytes to upstream data (raw/enc)", in_size, self.out_pkt.data.len());
 
         Ok(Some(()))
     }
 
+
     /// Decompresses `self.in_pkt.data` and writes it to `self.tun`
     /// On success `self.in_pkt.data` gets cleared
     pub async fn write_tun(&mut self) -> anyhow::Result<()> {
+
         // TODO I guess its better to keep decoder & resetting it instead of creating a new one each time
         let mut dec = ZlibDecoder::new(self.in_pkt.data.as_slice());
         let mut buf = Vec::new();

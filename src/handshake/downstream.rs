@@ -34,6 +34,26 @@ impl ClientHandshake {
     }
 
 
+    /// Checks if the given encoding is usable / supported by server
+    pub async fn test_downstream_encoding(&mut self, codec: EncodingInfo) -> anyhow::Result<Option<EncodingInfo>> {
+
+        let url = format!("y{}{}{}",
+            codec.url_char,
+            b32_5to8(1),
+            cmc_b32_5to8(&mut self.cmc)
+        );
+
+        let response = self.dns_client.query_data(url)?;
+        let decoder = create_encoding(&codec.symbols)?;
+        let decoded = decoder.decode(&response[1..])?;
+
+        match decoded == DOWN_CODEC_CHECK {
+            true => Ok(Some(codec)),
+            false => Ok(None)
+        }
+    }
+
+
     /// Sends switch downstream codec request to server
     /// On failure `self.encoder.down_enc` needs to be reset afterwards!
     pub async fn switch_downstream_encoding(&mut self, codec: EncodingInfo, uid: u8) -> anyhow::Result<()> {
@@ -61,26 +81,6 @@ impl ClientHandshake {
 
         println!("Switched downstream codec to {}", data);
         Ok(())
-    }
-
-
-    /// Checks if the given encoding is usable / supported by server
-    pub async fn test_downstream_encoding(&mut self, codec: EncodingInfo) -> anyhow::Result<Option<EncodingInfo>> {
-
-        let url = format!("y{}{}{}",
-            codec.url_char,
-            b32_5to8(1),
-            cmc_b32_5to8(&mut self.cmc)
-        );
-
-        let response = self.dns_client.query_data(url)?;
-        let decoder = create_encoding(&codec.symbols)?;
-        let decoded = decoder.decode(&response[1..])?;
-
-        match decoded == DOWN_CODEC_CHECK {
-            true => Ok(Some(codec)),
-            false => Ok(None)
-        }
     }
 
 

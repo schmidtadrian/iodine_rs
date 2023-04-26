@@ -3,6 +3,7 @@ use bytes::Bytes;
 
 use super::{encode::url_to_qname, decode::get_rdata, error::DnsError};
 
+
 pub struct DnsClient {
     socket: UdpSocket,
     chunk_id: u16,
@@ -11,7 +12,9 @@ pub struct DnsClient {
     pub qname_suffix: Vec<u8>,
 }
 
+
 impl DnsClient {
+
     pub fn new<C, S>(client_addr: C, server_addr: S, domain: String, read_timeout: u64) -> Result<Self, DnsError>
     where
         C: ToSocketAddrs,
@@ -34,7 +37,9 @@ impl DnsClient {
         })
     }
     
+
     pub fn send(&self, bytes: &Bytes) -> Result<Vec<u8>, DnsError> {
+
         for i in 0..3 {
             let mut buffer = [0u8; 64*1024];
             self.socket.send(bytes).map_err(|_| DnsError::Disconnected)?;
@@ -48,11 +53,12 @@ impl DnsClient {
                 }
                 println!("No data received (try: {})", j);
             }
-
             println!("Resending data (try: {})", i);
         }
+
         Err(DnsError::Timeout)
     }
+
 
     pub fn query_data(&mut self, url: String) -> Result<Vec<u8>, DnsError>{
         let chunk_id = self.chunk_id();
@@ -60,6 +66,7 @@ impl DnsClient {
         let response = self.send(&query)?;
         get_rdata(&response)
     }
+
 
     /// adds 7727 to chunk id & returns new value
     /// on overflow we start from the beginning

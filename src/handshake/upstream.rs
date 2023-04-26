@@ -6,7 +6,6 @@ use super::client::ClientHandshake;
 
 impl ClientHandshake {
 
-
     /// Checks if a codec is usable / supported by server, by sending its pattern
     pub async fn test_upstream_encoding(&mut self, pattern: &str) -> anyhow::Result<bool> {
 
@@ -16,24 +15,6 @@ impl ClientHandshake {
 
         // we may use a dns label < 63
         Ok(url == decoded.replace('.', ""))
-    }
-
-
-    /// Trys to use an provided encoding. First one that works, will be used. Previous codec
-    /// is the fallback encoding.
-    pub async fn upstream_encoding_handshake(&mut self, encodings: Vec<Codecs>, uid: &u8) -> anyhow::Result<Option<()>> {
-
-        for encoding in encodings {
-            if self.test_upstream_encoding(encoding.get_test_pattern()).await? {
-                match self.switch_upstream_encoding(EncodingInfo::new(encoding), uid).await {
-                    Ok(v) => return Ok(Some(v)),
-                    Err(err) => eprintln!("{}", err),
-                }
-            }
-        }
-
-        println!("Failed, to switch upstream encoding, keeping default codec");
-        Ok(None)
     }
 
 
@@ -62,6 +43,24 @@ impl ClientHandshake {
 
         Ok(())
     }
+
+
+    /// Trys to use an provided encoding. First one that works, will be used. Previous codec
+    /// is the fallback encoding.
+    pub async fn upstream_encoding_handshake(&mut self, encodings: Vec<Codecs>, uid: &u8) -> anyhow::Result<Option<()>> {
+
+        for encoding in encodings {
+            if self.test_upstream_encoding(encoding.get_test_pattern()).await? {
+                match self.switch_upstream_encoding(EncodingInfo::new(encoding), uid).await {
+                    Ok(v) => return Ok(Some(v)),
+                    Err(err) => eprintln!("{}", err),
+                }
+            }
+        }
+
+        println!("Failed, to switch upstream encoding, keeping default codec");
+        Ok(None)
+    }
 }
 
 
@@ -73,6 +72,4 @@ pub enum SwitchCodecError {
     Codec,
     #[error("Server rejected IP/User")]
     Ip,
-    #[error("Can't handle server response")]
-    UnexpectedResponse,
 }
